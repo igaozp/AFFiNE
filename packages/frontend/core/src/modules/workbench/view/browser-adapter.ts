@@ -36,10 +36,6 @@ export function useBindWorkbenchToBrowserRouter(
       if (update.action === 'POP') {
         // This is because the history of view and browser are two different stacks,
         // the POP action cannot be synchronized.
-        throw new Error('POP view history is not allowed on browser');
-      }
-
-      if (update.location.state === 'fromBrowser') {
         return;
       }
 
@@ -48,13 +44,11 @@ export function useBindWorkbenchToBrowserRouter(
         basename
       );
 
-      if (locationIsEqual(browserLocation, newBrowserLocation)) {
-        return;
-      }
-
       navigate(newBrowserLocation, {
-        state: 'fromView',
-        replace: update.action === 'REPLACE',
+        state: 'fromView,' + newBrowserLocation.key,
+        replace:
+          update.action === 'REPLACE' ||
+          newBrowserLocation.state === 'fromBrowser',
       });
     });
   }, [basename, browserLocation, navigate, view]);
@@ -67,7 +61,25 @@ export function useBindWorkbenchToBrowserRouter(
     if (newLocation === null) {
       return;
     }
-
+    if (
+      typeof newLocation.state === 'string' &&
+      newLocation.state.startsWith('fromView')
+    ) {
+      const fromViewKey = newLocation.state.substring('fromView,'.length);
+      if (fromViewKey === view.location$.value.key) {
+        return;
+      } else {
+        const target = view.history.entries.findIndex(
+          entry => entry.key === fromViewKey
+        );
+        if (target !== -1) {
+          const now = view.history.index;
+          const delta = target - now;
+          view.history.go(delta);
+          return;
+        }
+      }
+    }
     view.history.push(newLocation, 'fromBrowser');
   }, [basename, browserLocation, view]);
 }
@@ -93,13 +105,4 @@ function viewLocationToBrowserLocation(
     ...location,
     pathname: `${basename}${location.pathname}`,
   };
-}
-
-function locationIsEqual(a: Location, b: Location) {
-  return (
-    a.hash === b.hash &&
-    a.pathname === b.pathname &&
-    a.search === b.search &&
-    a.state === b.state
-  );
 }

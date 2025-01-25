@@ -1,24 +1,20 @@
 import { IconButton, MenuItem, MenuSeparator, toast } from '@affine/component';
 import { usePageHelper } from '@affine/core/components/blocksuite/block-suite-page-list/utils';
 import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
-import { track } from '@affine/core/mixpanel';
+import { DocsService } from '@affine/core/modules/doc';
 import { FavoriteService } from '@affine/core/modules/favorite';
 import { TagService } from '@affine/core/modules/tag';
 import { WorkbenchService } from '@affine/core/modules/workbench';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import {
   DeleteIcon,
   OpenInNewIcon,
   PlusIcon,
   SplitViewIcon,
 } from '@blocksuite/icons/rc';
-import {
-  DocsService,
-  FeatureFlagService,
-  useLiveData,
-  useServices,
-  WorkspaceService,
-} from '@toeverything/infra';
+import { useLiveData, useServices } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
 import type { NodeOperation } from '../../tree/types';
@@ -32,28 +28,19 @@ export const useExplorerTagNodeOperations = (
   }
 ): NodeOperation[] => {
   const t = useI18n();
-  const {
-    workbenchService,
-    workspaceService,
-    tagService,
-    favoriteService,
-    featureFlagService,
-  } = useServices({
-    WorkbenchService,
-    WorkspaceService,
-    TagService,
-    DocsService,
-    FavoriteService,
-    FeatureFlagService,
-  });
+  const { workbenchService, workspaceService, tagService, favoriteService } =
+    useServices({
+      WorkbenchService,
+      WorkspaceService,
+      TagService,
+      DocsService,
+      FavoriteService,
+    });
 
   const favorite = useLiveData(
     favoriteService.favoriteList.favorite$('tag', tagId)
   );
   const tagRecord = useLiveData(tagService.tagList.tagByTagId$(tagId));
-  const enableMultiView = useLiveData(
-    featureFlagService.flags.enable_multi_view.$
-  );
 
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
@@ -64,10 +51,9 @@ export const useExplorerTagNodeOperations = (
       const newDoc = createPage();
       tagRecord?.tag(newDoc.id);
       track.$.navigationPanel.tags.createDoc();
-      workbenchService.workbench.openDoc(newDoc.id);
       openNodeCollapsed();
     }
-  }, [createPage, openNodeCollapsed, tagRecord, workbenchService.workbench]);
+  }, [createPage, openNodeCollapsed, tagRecord]);
 
   const handleMoveToTrash = useCallback(() => {
     tagService.tagList.deleteTag(tagId);
@@ -119,7 +105,7 @@ export const useExplorerTagNodeOperations = (
           </MenuItem>
         ),
       },
-      ...(enableMultiView && environment.isElectron
+      ...(BUILD_CONFIG.isElectron
         ? [
             {
               index: 100,
@@ -165,7 +151,6 @@ export const useExplorerTagNodeOperations = (
       },
     ],
     [
-      enableMultiView,
       favorite,
       handleMoveToTrash,
       handleNewDoc,

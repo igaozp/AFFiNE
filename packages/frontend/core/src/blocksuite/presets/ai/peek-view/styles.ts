@@ -42,7 +42,7 @@ export const PeekViewStyles = css`
   .new-chat-messages-container {
     width: 100%;
     box-sizing: border-box;
-    min-height: 450px;
+    min-height: 180px;
     display: flex;
     flex-direction: column;
     gap: 24px;

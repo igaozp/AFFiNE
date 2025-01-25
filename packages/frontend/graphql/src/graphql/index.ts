@@ -12,8 +12,8 @@ fragment PasswordLimits on PasswordLimitsType {
   minLength
   maxLength
 }`
-export const credentialsRequirementFragment = `
-fragment CredentialsRequirement on CredentialsRequirementType {
+export const credentialsRequirementsFragment = `
+fragment CredentialsRequirements on CredentialsRequirementType {
   password {
     ...PasswordLimits
   }
@@ -33,12 +33,12 @@ query adminServerConfig {
     type
     initialized
     credentialsRequirement {
-      ...CredentialsRequirement
+      ...CredentialsRequirements
     }
     availableUserFeatures
   }
 }${passwordLimitsFragment}
-${credentialsRequirementFragment}`,
+${credentialsRequirementsFragment}`,
 };
 
 export const deleteBlobMutation = {
@@ -47,19 +47,37 @@ export const deleteBlobMutation = {
   definitionName: 'deleteBlob',
   containsFile: false,
   query: `
-mutation deleteBlob($workspaceId: String!, $hash: String!) {
-  deleteBlob(workspaceId: $workspaceId, hash: $hash)
+mutation deleteBlob($workspaceId: String!, $key: String!, $permanently: Boolean) {
+  deleteBlob(workspaceId: $workspaceId, key: $key, permanently: $permanently)
 }`,
 };
 
 export const listBlobsQuery = {
   id: 'listBlobsQuery' as const,
   operationName: 'listBlobs',
-  definitionName: 'listBlobs',
+  definitionName: 'workspace',
   containsFile: false,
   query: `
 query listBlobs($workspaceId: String!) {
-  listBlobs(workspaceId: $workspaceId)
+  workspace(id: $workspaceId) {
+    blobs {
+      key
+      size
+      mime
+      createdAt
+    }
+  }
+}`,
+};
+
+export const releaseDeletedBlobsMutation = {
+  id: 'releaseDeletedBlobsMutation' as const,
+  operationName: 'releaseDeletedBlobs',
+  definitionName: 'releaseDeletedBlobs',
+  containsFile: false,
+  query: `
+mutation releaseDeletedBlobs($workspaceId: String!) {
+  releaseDeletedBlobs(workspaceId: $workspaceId)
 }`,
 };
 
@@ -80,8 +98,8 @@ export const cancelSubscriptionMutation = {
   definitionName: 'cancelSubscription',
   containsFile: false,
   query: `
-mutation cancelSubscription($idempotencyKey: String!, $plan: SubscriptionPlan = Pro) {
-  cancelSubscription(idempotencyKey: $idempotencyKey, plan: $plan) {
+mutation cancelSubscription($plan: SubscriptionPlan = Pro, $workspaceId: String) {
+  cancelSubscription(plan: $plan, workspaceId: $workspaceId) {
     id
     status
     nextBillAt
@@ -185,6 +203,17 @@ export const createCopilotSessionMutation = {
   query: `
 mutation createCopilotSession($options: CreateChatSessionInput!) {
   createCopilotSession(options: $options)
+}`,
+};
+
+export const updateCopilotSessionMutation = {
+  id: 'updateCopilotSessionMutation' as const,
+  operationName: 'updateCopilotSession',
+  definitionName: 'updateCopilotSession',
+  containsFile: false,
+  query: `
+mutation updateCopilotSession($options: UpdateChatSessionInput!) {
+  updateCopilotSession(options: $options)
 }`,
 };
 
@@ -400,6 +429,17 @@ query getInviteInfo($inviteId: String!) {
 }`,
 };
 
+export const getIsAdminQuery = {
+  id: 'getIsAdminQuery' as const,
+  operationName: 'getIsAdmin',
+  definitionName: 'isAdmin',
+  containsFile: false,
+  query: `
+query getIsAdmin($workspaceId: String!) {
+  isAdmin(workspaceId: $workspaceId)
+}`,
+};
+
 export const getIsOwnerQuery = {
   id: 'getIsOwnerQuery' as const,
   operationName: 'getIsOwner',
@@ -440,8 +480,8 @@ query getMembersByWorkspaceId($workspaceId: String!, $skip: Int!, $take: Int!) {
       avatarUrl
       permission
       inviteId
-      accepted
       emailVerified
+      status
     }
   }
 }`,
@@ -610,6 +650,21 @@ query getWorkspaceFeatures($workspaceId: String!) {
 }`,
 };
 
+export const getWorkspaceInfoQuery = {
+  id: 'getWorkspaceInfoQuery' as const,
+  operationName: 'getWorkspaceInfo',
+  definitionName: 'isAdmin,isOwner,workspace',
+  containsFile: false,
+  query: `
+query getWorkspaceInfo($workspaceId: String!) {
+  isAdmin(workspaceId: $workspaceId)
+  isOwner(workspaceId: $workspaceId)
+  workspace(id: $workspaceId) {
+    team
+  }
+}`,
+};
+
 export const getWorkspacePageMetaByIdQuery = {
   id: 'getWorkspacePageMetaByIdQuery' as const,
   operationName: 'getWorkspacePageMetaById',
@@ -679,6 +734,29 @@ query getWorkspacePublicPages($workspaceId: String!) {
 }`,
 };
 
+export const getWorkspaceSubscriptionQuery = {
+  id: 'getWorkspaceSubscriptionQuery' as const,
+  operationName: 'getWorkspaceSubscription',
+  definitionName: 'workspace',
+  containsFile: false,
+  query: `
+query getWorkspaceSubscription($workspaceId: String!) {
+  workspace(id: $workspaceId) {
+    subscription {
+      id
+      status
+      plan
+      recurring
+      start
+      end
+      nextBillAt
+      canceledAt
+      variant
+    }
+  }
+}`,
+};
+
 export const getWorkspaceQuery = {
   id: 'getWorkspaceQuery' as const,
   operationName: 'getWorkspace',
@@ -702,6 +780,7 @@ query getWorkspaces {
   workspaces {
     id
     initialized
+    team
     owner {
       id
     }
@@ -754,8 +833,6 @@ query invoices($take: Int!, $skip: Int!) {
     invoices(take: $take, skip: $skip) {
       id
       status
-      plan
-      recurring
       currency
       amount
       reason
@@ -773,12 +850,8 @@ export const leaveWorkspaceMutation = {
   definitionName: 'leaveWorkspace',
   containsFile: false,
   query: `
-mutation leaveWorkspace($workspaceId: String!, $workspaceName: String!, $sendLeaveMail: Boolean) {
-  leaveWorkspace(
-    workspaceId: $workspaceId
-    workspaceName: $workspaceName
-    sendLeaveMail: $sendLeaveMail
-  )
+mutation leaveWorkspace($workspaceId: String!, $sendLeaveMail: Boolean) {
+  leaveWorkspace(workspaceId: $workspaceId, sendLeaveMail: $sendLeaveMail)
 }`,
 };
 
@@ -836,7 +909,7 @@ mutation publishPage($workspaceId: String!, $pageId: String!, $mode: PublicPageM
 export const quotaQuery = {
   id: 'quotaQuery' as const,
   operationName: 'quota',
-  definitionName: 'currentUser,collectAllBlobSizes',
+  definitionName: 'currentUser',
   containsFile: false,
   query: `
 query quota {
@@ -856,9 +929,9 @@ query quota {
         memberLimit
       }
     }
-  }
-  collectAllBlobSizes {
-    size
+    quotaUsage {
+      storageQuota
+    }
   }
 }`,
 };
@@ -893,8 +966,8 @@ export const resumeSubscriptionMutation = {
   definitionName: 'resumeSubscription',
   containsFile: false,
   query: `
-mutation resumeSubscription($idempotencyKey: String!, $plan: SubscriptionPlan = Pro) {
-  resumeSubscription(idempotencyKey: $idempotencyKey, plan: $plan) {
+mutation resumeSubscription($plan: SubscriptionPlan = Pro, $workspaceId: String) {
+  resumeSubscription(plan: $plan, workspaceId: $workspaceId) {
     id
     status
     nextBillAt
@@ -998,12 +1071,13 @@ query serverConfig {
     name
     features
     type
+    initialized
     credentialsRequirement {
-      ...CredentialsRequirement
+      ...CredentialsRequirements
     }
   }
 }${passwordLimitsFragment}
-${credentialsRequirementFragment}`,
+${credentialsRequirementsFragment}`,
 };
 
 export const setWorkspacePublicByIdMutation = {
@@ -1037,6 +1111,7 @@ query subscription {
       end
       nextBillAt
       canceledAt
+      variant
     }
   }
 }`,
@@ -1115,11 +1190,11 @@ export const updateSubscriptionMutation = {
   definitionName: 'updateSubscriptionRecurring',
   containsFile: false,
   query: `
-mutation updateSubscription($idempotencyKey: String!, $plan: SubscriptionPlan = Pro, $recurring: SubscriptionRecurring!) {
+mutation updateSubscription($plan: SubscriptionPlan = Pro, $recurring: SubscriptionRecurring!, $workspaceId: String) {
   updateSubscriptionRecurring(
-    idempotencyKey: $idempotencyKey
     plan: $plan
     recurring: $recurring
+    workspaceId: $workspaceId
   ) {
     id
     plan
@@ -1170,15 +1245,33 @@ mutation verifyEmail($token: String!) {
 }`,
 };
 
-export const getEnableUrlPreviewQuery = {
-  id: 'getEnableUrlPreviewQuery' as const,
-  operationName: 'getEnableUrlPreview',
+export const getWorkspaceConfigQuery = {
+  id: 'getWorkspaceConfigQuery' as const,
+  operationName: 'getWorkspaceConfig',
   definitionName: 'workspace',
   containsFile: false,
   query: `
-query getEnableUrlPreview($id: String!) {
+query getWorkspaceConfig($id: String!) {
   workspace(id: $id) {
+    enableAi
     enableUrlPreview
+    inviteLink {
+      link
+      expireTime
+    }
+  }
+}`,
+};
+
+export const setEnableAiMutation = {
+  id: 'setEnableAiMutation' as const,
+  operationName: 'setEnableAi',
+  definitionName: 'updateWorkspace',
+  containsFile: false,
+  query: `
+mutation setEnableAi($id: ID!, $enableAi: Boolean!) {
+  updateWorkspace(input: {id: $id, enableAi: $enableAi}) {
+    id
   }
 }`,
 };
@@ -1285,13 +1378,31 @@ export const inviteByEmailMutation = {
   definitionName: 'invite',
   containsFile: false,
   query: `
-mutation inviteByEmail($workspaceId: String!, $email: String!, $permission: Permission!, $sendInviteMail: Boolean) {
+mutation inviteByEmail($workspaceId: String!, $email: String!, $sendInviteMail: Boolean) {
   invite(
     workspaceId: $workspaceId
     email: $email
-    permission: $permission
     sendInviteMail: $sendInviteMail
   )
+}`,
+};
+
+export const inviteByEmailsMutation = {
+  id: 'inviteByEmailsMutation' as const,
+  operationName: 'inviteByEmails',
+  definitionName: 'inviteBatch',
+  containsFile: false,
+  query: `
+mutation inviteByEmails($workspaceId: String!, $emails: [String!]!, $sendInviteMail: Boolean) {
+  inviteBatch(
+    workspaceId: $workspaceId
+    emails: $emails
+    sendInviteMail: $sendInviteMail
+  ) {
+    email
+    inviteId
+    sentSuccess
+  }
 }`,
 };
 
@@ -1307,6 +1418,73 @@ mutation acceptInviteByInviteId($workspaceId: String!, $inviteId: String!, $send
     inviteId: $inviteId
     sendAcceptMail: $sendAcceptMail
   )
+}`,
+};
+
+export const inviteBatchMutation = {
+  id: 'inviteBatchMutation' as const,
+  operationName: 'inviteBatch',
+  definitionName: 'inviteBatch',
+  containsFile: false,
+  query: `
+mutation inviteBatch($workspaceId: String!, $emails: [String!]!, $sendInviteMail: Boolean) {
+  inviteBatch(
+    workspaceId: $workspaceId
+    emails: $emails
+    sendInviteMail: $sendInviteMail
+  ) {
+    email
+    inviteId
+    sentSuccess
+  }
+}`,
+};
+
+export const createInviteLinkMutation = {
+  id: 'createInviteLinkMutation' as const,
+  operationName: 'createInviteLink',
+  definitionName: 'createInviteLink',
+  containsFile: false,
+  query: `
+mutation createInviteLink($workspaceId: String!, $expireTime: WorkspaceInviteLinkExpireTime!) {
+  createInviteLink(workspaceId: $workspaceId, expireTime: $expireTime) {
+    link
+    expireTime
+  }
+}`,
+};
+
+export const revokeInviteLinkMutation = {
+  id: 'revokeInviteLinkMutation' as const,
+  operationName: 'revokeInviteLink',
+  definitionName: 'revokeInviteLink',
+  containsFile: false,
+  query: `
+mutation revokeInviteLink($workspaceId: String!) {
+  revokeInviteLink(workspaceId: $workspaceId)
+}`,
+};
+
+export const workspaceInvoicesQuery = {
+  id: 'workspaceInvoicesQuery' as const,
+  operationName: 'workspaceInvoices',
+  definitionName: 'workspace',
+  containsFile: false,
+  query: `
+query workspaceInvoices($take: Int!, $skip: Int!, $workspaceId: String!) {
+  workspace(id: $workspaceId) {
+    invoiceCount
+    invoices(take: $take, skip: $skip) {
+      id
+      status
+      currency
+      amount
+      reason
+      lastPaymentError
+      link
+      createdAt
+    }
+  }
 }`,
 };
 
@@ -1335,5 +1513,27 @@ query workspaceQuota($id: String!) {
       usedSize
     }
   }
+}`,
+};
+
+export const approveWorkspaceTeamMemberMutation = {
+  id: 'approveWorkspaceTeamMemberMutation' as const,
+  operationName: 'approveWorkspaceTeamMember',
+  definitionName: 'approveMember',
+  containsFile: false,
+  query: `
+mutation approveWorkspaceTeamMember($workspaceId: String!, $userId: String!) {
+  approveMember(workspaceId: $workspaceId, userId: $userId)
+}`,
+};
+
+export const grantWorkspaceTeamMemberMutation = {
+  id: 'grantWorkspaceTeamMemberMutation' as const,
+  operationName: 'grantWorkspaceTeamMember',
+  definitionName: 'grantMember',
+  containsFile: false,
+  query: `
+mutation grantWorkspaceTeamMember($workspaceId: String!, $userId: String!, $permission: Permission!) {
+  grantMember(workspaceId: $workspaceId, userId: $userId, permission: $permission)
 }`,
 };

@@ -1,8 +1,8 @@
 import { ModuleRef } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
 
+import { Config } from '../../base';
 import { FeatureManagementService } from '../../core/features';
-import { Config } from '../../fundamentals';
 
 export class SelfHostAdmin1 {
   // do the migration
@@ -23,11 +23,7 @@ export class SelfHostAdmin1 {
   }
 
   // revert the migration
-  static async down(db: PrismaClient) {
-    await db.user.deleteMany({
-      where: {
-        email: process.env.AFFINE_ADMIN_EMAIL ?? 'admin@example.com',
-      },
-    });
+  static async down() {
+    //
   }
 }

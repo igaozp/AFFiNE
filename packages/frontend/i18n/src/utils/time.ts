@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 
-import { I18n } from '../i18n';
+import { I18n, type I18nInstance } from '../i18next';
 
 export type TimeUnit =
   | 'second'
@@ -46,7 +46,7 @@ export function i18nTime(
   time: dayjs.ConfigType,
   options: {
     // override i18n instance, default is global I18n instance
-    i18n?: I18n;
+    i18n?: I18nInstance;
     // override now time, default is current time
     now?: dayjs.ConfigType;
     relative?:

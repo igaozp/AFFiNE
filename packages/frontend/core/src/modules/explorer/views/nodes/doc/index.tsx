@@ -5,26 +5,24 @@ import {
   toast,
   Tooltip,
 } from '@affine/component';
-import { InfoModal } from '@affine/core/components/affine/page-properties';
-import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
-import { track } from '@affine/core/mixpanel';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
+import { DocsService } from '@affine/core/modules/doc';
+import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
 import { DocsSearchService } from '@affine/core/modules/docs-search';
+import { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { GlobalContextService } from '@affine/core/modules/global-context';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import {
-  EdgelessIcon,
-  LinkedEdgelessIcon,
-  LinkedPageIcon,
-  PageIcon,
-} from '@blocksuite/icons/rc';
-import {
-  DocsService,
-  GlobalContextService,
   LiveData,
   useLiveData,
+  useService,
   useServices,
 } from '@toeverything/infra';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { NEVER } from 'rxjs';
 
 import { ExplorerTreeNode, type ExplorerTreeNodeDropEffect } from '../../tree';
 import type { GenericExplorerNode } from '../types';
@@ -46,43 +44,54 @@ export const ExplorerDocNode = ({
   isLinked?: boolean;
 } & GenericExplorerNode) => {
   const t = useI18n();
-  const { docsSearchService, docsService, globalContextService } = useServices({
+  const {
+    docsSearchService,
+    docsService,
+    globalContextService,
+    docDisplayMetaService,
+    featureFlagService,
+  } = useServices({
     DocsSearchService,
     DocsService,
     GlobalContextService,
+    DocDisplayMetaService,
+    FeatureFlagService,
   });
+
   const active =
     useLiveData(globalContextService.globalContext.docId.$) === docId;
   const [collapsed, setCollapsed] = useState(true);
 
   const docRecord = useLiveData(docsService.list.doc$(docId));
-  const docPrimaryMode = useLiveData(docRecord?.primaryMode$);
-  const docTitle = useLiveData(docRecord?.title$);
+  const DocIcon = useLiveData(
+    docDisplayMetaService.icon$(docId, {
+      reference: isLinked,
+    })
+  );
+  const docTitle = useLiveData(docDisplayMetaService.title$(docId));
   const isInTrash = useLiveData(docRecord?.trash$);
+  const enableEmojiIcon = useLiveData(
+    featureFlagService.flags.enable_emoji_doc_icon.$
+  );
 
   const Icon = useCallback(
     ({ className }: { className?: string }) => {
-      return isLinked ? (
-        docPrimaryMode === 'edgeless' ? (
-          <LinkedEdgelessIcon className={className} />
-        ) : (
-          <LinkedPageIcon className={className} />
-        )
-      ) : docPrimaryMode === 'edgeless' ? (
-        <EdgelessIcon className={className} />
-      ) : (
-        <PageIcon className={className} />
-      );
+      return <DocIcon className={className} />;
     },
-    [docPrimaryMode, isLinked]
+    [DocIcon]
   );
 
   const children = useLiveData(
     useMemo(
-      () => LiveData.from(docsSearchService.watchRefsFrom(docId), null),
-      [docsSearchService, docId]
+      () =>
+        LiveData.from(
+          !collapsed ? docsSearchService.watchRefsFrom(docId) : NEVER,
+          null
+        ),
+      [docsSearchService, docId, collapsed]
     )
   );
+  const searching = children === null;
 
   const indexerLoading = useLiveData(
     docsSearchService.indexer.status$.map(
@@ -129,6 +138,9 @@ export const ExplorerDocNode = ({
           track.$.navigationPanel.docs.linkDoc({
             control: 'drag',
           });
+          track.$.navigationPanel.docs.drop({
+            type: data.source.data.entity.type,
+          });
         } else {
           toast(t['com.affine.rootAppSidebar.doc.link-doc-only']());
         }
@@ -161,6 +173,9 @@ export const ExplorerDocNode = ({
         track.$.navigationPanel.docs.linkDoc({
           control: 'drag',
         });
+        track.$.navigationPanel.docs.drop({
+          type: data.source.data.entity.type,
+        });
       } else {
         toast(t['com.affine.rootAppSidebar.doc.link-doc-only']());
       }
@@ -178,15 +193,15 @@ export const ExplorerDocNode = ({
     [canDrop]
   );
 
-  const [enableInfoModal, setEnableInfoModal] = useState(false);
+  const workspaceDialogService = useService(WorkspaceDialogService);
   const operations = useExplorerDocNodeOperations(
     docId,
     useMemo(
       () => ({
-        openInfoModal: () => setEnableInfoModal(true),
+        openInfoModal: () => workspaceDialogService.open('doc-info', { docId }),
         openNodeCollapsed: () => setCollapsed(false),
       }),
-      []
+      [docId, workspaceDialogService]
     )
   );
 
@@ -202,57 +217,51 @@ export const ExplorerDocNode = ({
   }
 
   return (
-    <>
-      <ExplorerTreeNode
-        icon={Icon}
-        name={docTitle || t['Untitled']()}
-        dndData={dndData}
-        onDrop={handleDropOnDoc}
-        renameable
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        canDrop={handleCanDrop}
-        to={`/${docId}`}
-        active={active}
-        postfix={
-          referencesLoading &&
-          !collapsed && (
-            <Tooltip
-              content={t['com.affine.rootAppSidebar.docs.references-loading']()}
-            >
-              <div className={styles.loadingIcon}>
-                <Loading />
-              </div>
-            </Tooltip>
-          )
-        }
-        reorderable={reorderable}
-        onRename={handleRename}
-        childrenPlaceholder={<Empty onDrop={handleDropOnPlaceholder} />}
-        operations={finalOperations}
-        dropEffect={handleDropEffectOnDoc}
-        data-testid={`explorer-doc-${docId}`}
-      >
-        {children?.map(child => (
-          <ExplorerDocNode
-            key={child.docId}
-            docId={child.docId}
-            reorderable={false}
-            location={{
-              at: 'explorer:doc:linked-docs',
-              docId,
-            }}
-            isLinked
-          />
-        ))}
-      </ExplorerTreeNode>
-      {enableInfoModal && (
-        <InfoModal
-          open={enableInfoModal}
-          onOpenChange={setEnableInfoModal}
-          docId={docId}
+    <ExplorerTreeNode
+      icon={Icon}
+      name={t.t(docTitle)}
+      dndData={dndData}
+      onDrop={handleDropOnDoc}
+      renameable
+      extractEmojiAsIcon={enableEmojiIcon}
+      collapsed={collapsed}
+      setCollapsed={setCollapsed}
+      canDrop={handleCanDrop}
+      to={`/${docId}`}
+      active={active}
+      postfix={
+        referencesLoading &&
+        !collapsed && (
+          <Tooltip
+            content={t['com.affine.rootAppSidebar.docs.references-loading']()}
+          >
+            <div className={styles.loadingIcon}>
+              <Loading />
+            </div>
+          </Tooltip>
+        )
+      }
+      reorderable={reorderable}
+      onRename={handleRename}
+      childrenPlaceholder={
+        searching ? null : <Empty onDrop={handleDropOnPlaceholder} />
+      }
+      operations={finalOperations}
+      dropEffect={handleDropEffectOnDoc}
+      data-testid={`explorer-doc-${docId}`}
+    >
+      {children?.map(child => (
+        <ExplorerDocNode
+          key={child.docId}
+          docId={child.docId}
+          reorderable={false}
+          location={{
+            at: 'explorer:doc:linked-docs',
+            docId,
+          }}
+          isLinked
         />
-      )}
-    </>
+      ))}
+    </ExplorerTreeNode>
   );
 };

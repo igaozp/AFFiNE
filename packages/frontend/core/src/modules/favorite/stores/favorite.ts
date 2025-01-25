@@ -1,50 +1,29 @@
-import { WorkspaceFlavour } from '@affine/env/workspace';
-import type { WorkspaceDBService, WorkspaceService } from '@toeverything/infra';
 import { LiveData, Store } from '@toeverything/infra';
 import { map } from 'rxjs';
 
-import type { AuthService } from '../../cloud';
-import type { FavoriteSupportType } from '../constant';
+import type { WorkspaceDBService } from '../../db';
+import type { FavoriteSupportTypeUnion } from '../constant';
 import { isFavoriteSupportType } from '../constant';
 
 export interface FavoriteRecord {
-  type: FavoriteSupportType;
+  type: FavoriteSupportTypeUnion;
   id: string;
   index: string;
 }
 
 export class FavoriteStore extends Store {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly workspaceDBService: WorkspaceDBService,
-    private readonly workspaceService: WorkspaceService
-  ) {
+  constructor(private readonly workspaceDBService: WorkspaceDBService) {
     super();
   }
 
-  private get userdataDB$() {
-    return this.authService.session.account$.map(account => {
-      // if is local workspace or no account, use __local__ userdata
-      // sometimes we may have cloud workspace but no account for a short time, we also use __local__ userdata
-      if (
-        this.workspaceService.workspace.meta.flavour ===
-          WorkspaceFlavour.LOCAL ||
-        !account
-      ) {
-        return this.workspaceDBService.userdataDB('__local__');
-      }
-      return this.workspaceDBService.userdataDB(account.id);
-    });
-  }
-
   watchIsLoading() {
-    return this.userdataDB$
+    return this.workspaceDBService.userdataDB$
       .map(db => LiveData.from(db.favorite.isLoading$, false))
       .flat();
   }
 
   watchFavorites() {
-    return this.userdataDB$
+    return this.workspaceDBService.userdataDB$
       .map(db => LiveData.from(db.favorite.find$(), []))
       .flat()
       .map(raw => {
@@ -55,11 +34,11 @@ export class FavoriteStore extends Store {
   }
 
   addFavorite(
-    type: FavoriteSupportType,
+    type: FavoriteSupportTypeUnion,
     id: string,
     index: string
   ): FavoriteRecord {
-    const db = this.userdataDB$.value;
+    const db = this.workspaceDBService.userdataDB$.value;
     const raw = db.favorite.create({
       key: this.encodeKey(type, id),
       index,
@@ -67,18 +46,18 @@ export class FavoriteStore extends Store {
     return this.toRecord(raw) as FavoriteRecord;
   }
 
-  reorderFavorite(type: FavoriteSupportType, id: string, index: string) {
-    const db = this.userdataDB$.value;
+  reorderFavorite(type: FavoriteSupportTypeUnion, id: string, index: string) {
+    const db = this.workspaceDBService.userdataDB$.value;
     db.favorite.update(this.encodeKey(type, id), { index });
   }
 
-  removeFavorite(type: FavoriteSupportType, id: string) {
-    const db = this.userdataDB$.value;
+  removeFavorite(type: FavoriteSupportTypeUnion, id: string) {
+    const db = this.workspaceDBService.userdataDB$.value;
     db.favorite.delete(this.encodeKey(type, id));
   }
 
-  watchFavorite(type: FavoriteSupportType, id: string) {
-    const db = this.userdataDB$.value;
+  watchFavorite(type: FavoriteSupportTypeUnion, id: string) {
+    const db = this.workspaceDBService.userdataDB$.value;
     return LiveData.from<FavoriteRecord | undefined>(
       db.favorite
         .get$(this.encodeKey(type, id))
@@ -109,7 +88,7 @@ export class FavoriteStore extends Store {
    * @returns null if key is invalid
    */
   private parseKey(key: string): {
-    type: FavoriteSupportType;
+    type: FavoriteSupportTypeUnion;
     id: string;
   } | null {
     const [type, id] = key.split(':');
@@ -119,10 +98,10 @@ export class FavoriteStore extends Store {
     if (!isFavoriteSupportType(type)) {
       return null;
     }
-    return { type: type as FavoriteSupportType, id };
+    return { type: type as FavoriteSupportTypeUnion, id };
   }
 
-  private encodeKey(type: FavoriteSupportType, id: string) {
+  private encodeKey(type: FavoriteSupportTypeUnion, id: string) {
     return `${type}:${id}`;
   }
 }

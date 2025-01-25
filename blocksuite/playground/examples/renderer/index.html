@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Renderer Example</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+        background-color: var(--affine-white-90);
+        transition: background-color 0.3s;
+      }
+
+      #container {
+        display: flex;
+        width: 100%;
+        height: 100%;
+      }
+
+      #left-column {
+        flex: 1;
+        padding: 20px;
+        border-right: 1px solid #e0e0e0;
+      }
+
+      #right-column {
+        flex: 1;
+        padding: 20px;
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+      }
+
+      #to-canvas-button {
+        position: absolute;
+        top: 5px;
+        left: 5px;
+      }
+
+      #switch-mode-button {
+        position: absolute;
+        top: 5px;
+        left: 85px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div id="left-column"></div>
+      <div id="right-column">
+        <button id="to-canvas-button">to canvas</button>
+        <button id="switch-mode-button">switch mode</button>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

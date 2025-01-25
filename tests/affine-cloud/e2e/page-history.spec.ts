@@ -23,7 +23,7 @@ let user: {
 
 test.beforeEach(async ({ page }) => {
   user = await createRandomUser();
-  await loginUser(page, user.email);
+  await loginUser(page, user);
 });
 
 test.afterEach(async () => {
@@ -58,7 +58,7 @@ test('newly created page shows empty history', async ({ page }) => {
 const pushCurrentPageUpdates = async (page: Page) => {
   const [workspaceId, guid, updates, state] = await page.evaluate(() => {
     // @ts-expect-error
-    const Y = window.currentWorkspace.docCollection.constructor.Y;
+    const Y = window.Y;
     // @ts-expect-error
     const spaceDoc = window.currentEditor.page.spaceDoc;
     // @ts-expect-error

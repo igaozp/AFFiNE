@@ -7,9 +7,6 @@ on:
         type: string
         required: true
 
-env:
-  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-
 permissions:
   contents: 'write'
   id-token: 'write'
@@ -30,7 +27,9 @@ jobs:
           electron-install: false
           extra-flags: workspaces focus @affine/server
       - name: Build Server
-        run: yarn workspace @affine/server build
+        run: |
+          rm -rf packages/backend/server/src/__tests__
+          yarn workspace @affine/server build
       - name: Upload server dist
         uses: actions/upload-artifact@v4
         with:
@@ -50,7 +49,7 @@ jobs:
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
       - name: Build Core
-        run: yarn nx build @affine/web --skip-nx-cache
+        run: yarn affine @affine/web build
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -68,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: web
-          path: ./packages/frontend/web/dist
+          path: ./packages/frontend/apps/web/dist
           if-no-files-found: error
 
   build-admin:
@@ -83,7 +82,7 @@ jobs:
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
       - name: Build Admin
-        run: yarn nx build @affine/admin --skip-nx-cache
+        run: yarn affine @affine/admin build
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -115,7 +114,7 @@ jobs:
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
       - name: Build Mobile
-        run: yarn nx build @affine/mobile --skip-nx-cache
+        run: yarn affine @affine/mobile build
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -132,90 +131,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mobile
-          path: ./packages/frontend/mobile/dist
-          if-no-files-found: error
-
-  build-web-selfhost:
-    name: Build @affine/web selfhost
-    runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.flavor }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Version
-        id: version
-        uses: ./.github/actions/setup-version
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-      - name: Build Core
-        run: yarn nx build @affine/web --skip-nx-cache
-        env:
-          BUILD_TYPE: ${{ github.event.inputs.flavor }}
-          PUBLIC_PATH: '/'
-          SELF_HOSTED: true
-          MIXPANEL_TOKEN: ${{ secrets.MIXPANEL_TOKEN }}
-      - name: Download selfhost fonts
-        run: node ./scripts/download-blocksuite-fonts.mjs
-      - name: Upload web artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: selfhost-web
-          path: ./packages/frontend/web/dist
-          if-no-files-found: error
-
-  build-mobile-selfhost:
-    name: Build @affine/mobile selfhost
-    runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.flavor }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Version
-        id: version
-        uses: ./.github/actions/setup-version
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-      - name: Build Mobile
-        run: yarn nx build @affine/mobile --skip-nx-cache
-        env:
-          BUILD_TYPE: ${{ github.event.inputs.flavor }}
-          PUBLIC_PATH: '/'
-          SELF_HOSTED: true
-          MIXPANEL_TOKEN: ${{ secrets.MIXPANEL_TOKEN }}
-      - name: Upload mobile artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: selfhost-mobile
-          path: ./packages/frontend/mobile/dist
-          if-no-files-found: error
-
-  build-admin-selfhost:
-    name: Build @affine/admin selfhost
-    runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.flavor }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Version
-        id: version
-        uses: ./.github/actions/setup-version
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-      - name: Build admin
-        run: yarn nx build @affine/admin --skip-nx-cache
-        env:
-          BUILD_TYPE: ${{ github.event.inputs.flavor }}
-          PUBLIC_PATH: '/admin/'
-          SELF_HOSTED: true
-          MIXPANEL_TOKEN: ${{ secrets.MIXPANEL_TOKEN }}
-      - name: Upload admin artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: selfhost-admin
-          path: ./packages/frontend/admin/dist
+          path: ./packages/frontend/apps/mobile/dist
           if-no-files-found: error
 
   build-server-native:
     name: Build Server native - ${{ matrix.targets.name }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         targets:
           - name: x86_64-unknown-linux-gnu
@@ -240,7 +163,6 @@ jobs:
         with:
           target: ${{ matrix.targets.name }}
           package: '@affine/server-native'
-          nx_token: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
       - name: Upload ${{ matrix.targets.file }}
         uses: actions/upload-artifact@v4
         with:
@@ -256,9 +178,6 @@ jobs:
       - build-web
       - build-mobile
       - build-admin
-      - build-web-selfhost
-      - build-mobile-selfhost
-      - build-admin-selfhost
       - build-server-native
     steps:
       - uses: actions/checkout@v4
@@ -320,37 +239,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: web
-          path: ./packages/frontend/web/dist
+          path: ./packages/frontend/apps/web/dist
 
       - name: Download mobile artifact
         uses: actions/download-artifact@v4
         with:
           name: mobile
-          path: ./packages/frontend/mobile/dist
+          path: ./packages/frontend/apps/mobile/dist
 
       - name: Download admin artifact
         uses: actions/download-artifact@v4
         with:
           name: admin
           path: ./packages/frontend/admin/dist
-
-      - name: Download selfhost web artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: selfhost-web
-          path: ./packages/frontend/web/dist/selfhost
-
-      - name: Download selfhost mobile artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: selfhost-mobile
-          path: ./packages/frontend/mobile/dist/selfhost
-
-      - name: Download selfhost admin artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: selfhost-admin
-          path: ./packages/frontend/admin/dist/selfhost
 
       - name: Install Node.js dependencies
         run: |

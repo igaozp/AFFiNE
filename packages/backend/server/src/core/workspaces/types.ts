@@ -8,7 +8,7 @@ import {
   PickType,
   registerEnumType,
 } from '@nestjs/graphql';
-import type { Workspace } from '@prisma/client';
+import { Workspace, WorkspaceMemberStatus } from '@prisma/client';
 import { SafeIntResolver } from 'graphql-scalars';
 
 import { Permission } from '../permission';
@@ -17,6 +17,11 @@ import { UserType } from '../user/types';
 registerEnumType(Permission, {
   name: 'Permission',
   description: 'User permission in workspace',
+});
+
+registerEnumType(WorkspaceMemberStatus, {
+  name: 'WorkspaceMemberStatus',
+  description: 'Member invite status in workspace',
 });
 
 @ObjectType()
@@ -34,8 +39,16 @@ export class InviteUserType extends OmitType(
   @Field({ description: 'Invite id' })
   inviteId!: string;
 
-  @Field({ description: 'User accepted' })
+  @Field({
+    description: 'User accepted',
+    deprecationReason: 'Use `status` instead',
+  })
   accepted!: boolean;
+
+  @Field(() => WorkspaceMemberStatus, {
+    description: 'Member invite status in workspace',
+  })
+  status!: WorkspaceMemberStatus;
 }
 
 @ObjectType()
@@ -45,6 +58,9 @@ export class WorkspaceType implements Partial<Workspace> {
 
   @Field({ description: 'is Public workspace' })
   public!: boolean;
+
+  @Field({ description: 'Enable AI' })
+  enableAi!: boolean;
 
   @Field({ description: 'Enable url previous when sharing' })
   enableUrlPreview!: boolean;
@@ -92,9 +108,47 @@ export class InvitationType {
 @InputType()
 export class UpdateWorkspaceInput extends PickType(
   PartialType(WorkspaceType),
-  ['public', 'enableUrlPreview'],
+  ['public', 'enableAi', 'enableUrlPreview'],
   InputType
 ) {
   @Field(() => ID)
   id!: string;
 }
+
+@ObjectType()
+export class InviteLink {
+  @Field(() => String, { description: 'Invite link' })
+  link!: string;
+
+  @Field(() => Date, { description: 'Invite link expire time' })
+  expireTime!: Date;
+}
+
+@ObjectType()
+export class InviteResult {
+  @Field(() => String)
+  email!: string;
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Invite id, null if invite record create failed',
+  })
+  inviteId!: string | null;
+
+  @Field(() => Boolean, { description: 'Invite email sent success' })
+  sentSuccess!: boolean;
+}
+
+const Day = 24 * 60 * 60 * 1000;
+
+export enum WorkspaceInviteLinkExpireTime {
+  OneDay = Day,
+  ThreeDays = 3 * Day,
+  OneWeek = 7 * Day,
+  OneMonth = 30 * Day,
+}
+
+registerEnumType(WorkspaceInviteLinkExpireTime, {
+  name: 'WorkspaceInviteLinkExpireTime',
+  description: 'Workspace invite link expire time',
+});

@@ -52,6 +52,7 @@ export const orbitItem = style({
   flexShrink: 0,
   flexGrow: 0,
   overflow: 'hidden',
+  position: 'relative',
 });
 export const doc = style({
   selectors: {
@@ -171,6 +172,7 @@ export const noDragWrapper = style({
   position: 'absolute',
   inset: 0,
   pointerEvents: 'none',
+  width: '100%',
 });
 globalStyle(`${noDragWrapper} > *`, {
   pointerEvents: 'auto',

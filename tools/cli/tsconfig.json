@@ -1,12 +1,10 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.node.json",
   "compilerOptions": {
-    "composite": true,
-    "allowJs": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "outDir": "lib"
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src", "package.json"],
-  "references": [{ "path": "../../packages/common/env" }]
+  "include": ["./src"],
+  "references": [{ "path": "../utils" }]
 }

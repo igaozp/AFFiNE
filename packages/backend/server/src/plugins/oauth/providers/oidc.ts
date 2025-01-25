@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { z } from 'zod';
 
-import { Config, URLHelper } from '../../../fundamentals';
+import { Config, URLHelper } from '../../../base';
 import {
   OAuthOIDCProviderConfig,
   OAuthProviderName,
@@ -14,7 +14,7 @@ const OIDCTokenSchema = z.object({
   access_token: z.string(),
   expires_in: z.number(),
   refresh_token: z.string(),
-  scope: z.string(),
+  scope: z.string().optional(),
   token_type: z.string(),
 });
 
@@ -34,7 +34,6 @@ const OIDCConfigurationSchema = z.object({
   authorization_endpoint: z.string().url(),
   token_endpoint: z.string().url(),
   userinfo_endpoint: z.string().url(),
-  end_session_endpoint: z.string().url(),
 });
 
 type OIDCConfiguration = z.infer<typeof OIDCConfigurationSchema>;
@@ -178,6 +177,7 @@ export class OIDCProvider
     super();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   override async onModuleInit() {
     const config = this.optionalConfig as OAuthOIDCProviderConfig;
     if (config && config.issuer && config.clientId && config.clientSecret) {

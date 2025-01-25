@@ -1,0 +1,107 @@
+{
+  "name": "@blocksuite/affine",
+  "description": "BlockSuite for Affine",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --build --verbose",
+    "test:unit": "nx vite:test --run --passWithNoTests",
+    "test:unit:coverage": "nx vite:test --run --coverage",
+    "test:e2e": "playwright test"
+  },
+  "sideEffects": false,
+  "keywords": [],
+  "author": "toeverything",
+  "license": "MIT",
+  "dependencies": {
+    "@blocksuite/block-std": "workspace:*",
+    "@blocksuite/blocks": "workspace:*",
+    "@blocksuite/global": "workspace:*",
+    "@blocksuite/inline": "workspace:*",
+    "@blocksuite/presets": "workspace:*",
+    "@blocksuite/store": "workspace:*",
+    "@blocksuite/sync": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./effects": "./src/effects.ts",
+    "./block-std": "./src/block-std/index.ts",
+    "./block-std/gfx": "./src/block-std/gfx.ts",
+    "./global": "./src/global/index.ts",
+    "./global/utils": "./src/global/utils.ts",
+    "./global/env": "./src/global/env.ts",
+    "./global/exceptions": "./src/global/exceptions.ts",
+    "./global/di": "./src/global/di.ts",
+    "./global/types": "./src/global/types.ts",
+    "./store": "./src/store/index.ts",
+    "./store/test": "./src/store/test.ts",
+    "./inline": "./src/inline/index.ts",
+    "./inline/consts": "./src/inline/consts.ts",
+    "./inline/types": "./src/inline/types.ts",
+    "./presets": "./src/presets/index.ts",
+    "./blocks": "./src/blocks/index.ts",
+    "./blocks/schemas": "./src/blocks/schemas.ts",
+    "./sync": "./src/sync/index.ts"
+  },
+  "typesVersions": {
+    "*": {
+      "effects": [
+        "dist/effects.d.ts"
+      ],
+      "block-std": [
+        "dist/block-std/index.d.ts"
+      ],
+      "block-std/gfx": [
+        "dist/block-std/gfx.d.ts"
+      ],
+      "global": [
+        "dist/global/index.d.ts"
+      ],
+      "global/utils": [
+        "dist/global/utils.d.ts"
+      ],
+      "global/env": [
+        "dist/global/env.d.ts"
+      ],
+      "global/exceptions": [
+        "dist/global/exceptions.d.ts"
+      ],
+      "global/di": [
+        "dist/global/di.d.ts"
+      ],
+      "global/types": [
+        "dist/global/types.d.ts"
+      ],
+      "store": [
+        "dist/store/index.d.ts"
+      ],
+      "inline": [
+        "dist/inline/index.d.ts"
+      ],
+      "inline/consts": [
+        "dist/inline/consts.d.ts"
+      ],
+      "inline/types": [
+        "dist/inline/types.d.ts"
+      ],
+      "presets": [
+        "dist/presets/index.d.ts"
+      ],
+      "blocks": [
+        "dist/blocks/index.d.ts"
+      ],
+      "blocks/schemas": [
+        "dist/blocks/schemas.d.ts"
+      ],
+      "sync": [
+        "dist/sync/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "src",
+    "dist",
+    "!src/__tests__",
+    "!dist/__tests__"
+  ],
+  "version": "0.19.0"
+}

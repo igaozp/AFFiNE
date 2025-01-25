@@ -1,4 +1,4 @@
-import { PrismaTransaction } from '../../fundamentals';
+import { PrismaTransaction } from '../../base';
 import { Feature, FeatureSchema, FeatureType } from './types';
 
 class FeatureConfig<T extends FeatureType> {

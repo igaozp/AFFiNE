@@ -1,7 +1,7 @@
 import { AIProvider } from '@affine/core/blocksuite/presets/ai';
-import { mixpanel, track } from '@affine/core/mixpanel';
-import type { EditorHost } from '@blocksuite/block-std';
-import type { BlockModel } from '@blocksuite/store';
+import { mixpanel, track } from '@affine/track';
+import type { EditorHost } from '@blocksuite/affine/block-std';
+import type { BlockModel } from '@blocksuite/affine/store';
 import { lowerCase, omit } from 'lodash-es';
 
 type ElementModel = BlockSuite.SurfaceElementModel;
@@ -255,9 +255,7 @@ export function setupTracker() {
   });
 
   AIProvider.slots.requestLogin.on(() => {
-    track.$.$.auth.signIn({
-      control: 'aiAction',
-    });
+    track.doc.editor.aiActions.requestSignIn();
   });
 
   AIProvider.slots.actions.on(event => {

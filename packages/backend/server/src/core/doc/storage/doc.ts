@@ -1,13 +1,15 @@
 import {
   applyUpdate,
+  diffUpdate,
   Doc,
   encodeStateAsUpdate,
   encodeStateVector,
+  encodeStateVectorFromUpdate,
   mergeUpdates,
   UndoManager,
 } from 'yjs';
 
-import { CallTimer } from '../../../fundamentals';
+import { CallMetric } from '../../../base';
 import { Connection } from './connection';
 import { SingletonLocker } from './lock';
 
@@ -17,6 +19,12 @@ export interface DocRecord {
   bin: Uint8Array;
   timestamp: number;
   editor?: string;
+}
+
+export interface DocDiff {
+  missing: Uint8Array;
+  state: Uint8Array;
+  timestamp: number;
 }
 
 export interface DocUpdate {
@@ -96,6 +104,27 @@ export abstract class DocStorageAdapter extends Connection {
     return snapshot;
   }
 
+  async getDocDiff(
+    spaceId: string,
+    docId: string,
+    stateVector?: Uint8Array
+  ): Promise<DocDiff | null> {
+    const doc = await this.getDoc(spaceId, docId);
+
+    if (!doc) {
+      return null;
+    }
+
+    const missing = stateVector ? diffUpdate(doc.bin, stateVector) : doc.bin;
+    const state = encodeStateVectorFromUpdate(doc.bin);
+
+    return {
+      missing,
+      state,
+      timestamp: doc.timestamp,
+    };
+  }
+
   abstract pushDocUpdates(
     spaceId: string,
     docId: string,
@@ -165,7 +194,7 @@ export abstract class DocStorageAdapter extends Connection {
     force?: boolean
   ): Promise<boolean>;
 
-  @CallTimer('doc', 'squash')
+  @CallMetric('doc', 'squash')
   protected async squash(updates: DocUpdate[]): Promise<DocUpdate> {
     const merge = this.options?.mergeUpdates ?? mergeUpdates;
     const lastUpdate = updates.at(-1);

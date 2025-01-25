@@ -10,12 +10,19 @@ import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
 import type { CSSProperties } from 'react';
-import { forwardRef, useCallback, useEffect, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 
 import { startScopedViewTransition } from '../../utils';
 import type { IconButtonProps } from '../button';
 import { IconButton } from '../button';
 import { SafeArea } from '../safe-area';
+import { InsideModalContext, ModalConfigContext } from './context';
 import * as styles from './styles.css';
 
 export interface ModalProps extends DialogProps {
@@ -23,7 +30,9 @@ export interface ModalProps extends DialogProps {
   height?: CSSProperties['height'];
   minHeight?: CSSProperties['minHeight'];
   title?: React.ReactNode;
+  headerClassName?: string;
   description?: React.ReactNode;
+  descriptionClassName?: string;
   withoutCloseButton?: boolean;
   /**
    * __Click outside__ or __Press `Esc`__ won't close the modal
@@ -39,11 +48,12 @@ export interface ModalProps extends DialogProps {
   /**
    * @default 'fadeScaleTop'
    */
-  animation?: 'fadeScaleTop' | 'none' | 'slideBottom';
+  animation?: 'fadeScaleTop' | 'none' | 'slideBottom' | 'slideRight';
   /**
    * Whether to show the modal in full screen mode
    */
   fullScreen?: boolean;
+  disableAutoFocus?: boolean;
 }
 type PointerDownOutsideEvent = Parameters<
   Exclude<DialogContentProps['onPointerDownOutside'], undefined>
@@ -74,7 +84,7 @@ class ModalTransitionContainer extends HTMLElement {
       this.requestTransition();
       return child;
     } else {
-      // eslint-disable-next-line unicorn/prefer-dom-node-remove
+      // oxlint-disable-next-line unicorn/prefer-dom-node-remove
       return super.removeChild(child);
     }
   }
@@ -96,7 +106,7 @@ class ModalTransitionContainer extends HTMLElement {
       });
       startScopedViewTransition(styles.modalVTScope, () => {
         nodes.forEach(child => {
-          // eslint-disable-next-line unicorn/prefer-dom-node-remove
+          // oxlint-disable-next-line unicorn/prefer-dom-node-remove
           super.removeChild(child);
         });
       });
@@ -121,6 +131,7 @@ function createContainer() {
 
 export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
   (props, ref) => {
+    const { onOpen: modalConfigOnOpen } = useContext(ModalConfigContext);
     const {
       modal,
       portalOptions,
@@ -130,7 +141,9 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
       height,
       minHeight = 194,
       title,
+      headerClassName,
       description,
+      descriptionClassName,
       withoutCloseButton = false,
       persistent,
       contentOptions: {
@@ -149,8 +162,9 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
       children,
       contentWrapperClassName,
       contentWrapperStyle,
-      animation = environment.isMobileEdition ? 'slideBottom' : 'fadeScaleTop',
+      animation = BUILD_CONFIG.isMobileEdition ? 'slideBottom' : 'fadeScaleTop',
       fullScreen,
+      disableAutoFocus,
       ...otherProps
     } = props;
     const { className: closeButtonClassName, ...otherCloseButtonProps } =
@@ -159,6 +173,11 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
     const [container, setContainer] = useState<ModalTransitionContainer | null>(
       null
     );
+
+    useEffect(() => {
+      if (open) return modalConfigOnOpen?.();
+      return;
+    }, [modalConfigOnOpen, open]);
 
     useEffect(() => {
       if (open) {
@@ -191,6 +210,13 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
       [onEscapeKeyDown, persistent]
     );
 
+    const handleAutoFocus = useCallback(
+      (e: Event) => {
+        disableAutoFocus && e.preventDefault();
+      },
+      [disableAutoFocus]
+    );
+
     if (!container) {
       return;
     }
@@ -208,7 +234,7 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
               `anim-${animation}`,
               styles.modalOverlay,
               overlayClassName,
-              { mobile: environment.isMobileEdition }
+              { mobile: BUILD_CONFIG.isMobileEdition }
             )}
             style={{
               ...overlayStyle,
@@ -216,7 +242,7 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
             {...otherOverlayOptions}
           >
             <SafeArea
-              bottom={environment.isMobileEdition}
+              bottom={BUILD_CONFIG.isMobileEdition}
               bottomOffset={12}
               data-full-screen={fullScreen}
               data-modal={modal}
@@ -225,12 +251,14 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
                 styles.modalContentWrapper,
                 contentWrapperClassName
               )}
+              data-mobile={BUILD_CONFIG.isMobileEdition ? '' : undefined}
               style={contentWrapperStyle}
             >
               <Dialog.Content
                 onPointerDownOutside={handlePointerDownOutSide}
                 onEscapeKeyDown={handleEscapeKeyDown}
                 className={clsx(styles.modalContent, contentClassName)}
+                onOpenAutoFocus={handleAutoFocus}
                 style={{
                   ...assignInlineVars({
                     [styles.widthVar]: getVar(
@@ -263,7 +291,9 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
                   </Dialog.Close>
                 )}
                 {title ? (
-                  <Dialog.Title className={styles.modalHeader}>
+                  <Dialog.Title
+                    className={clsx(styles.modalHeader, headerClassName)}
+                  >
                     {title}
                   </Dialog.Title>
                 ) : (
@@ -274,7 +304,12 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
                   </VisuallyHidden.Root>
                 )}
                 {description ? (
-                  <Dialog.Description className={styles.modalDescription}>
+                  <Dialog.Description
+                    className={clsx(
+                      styles.modalDescription,
+                      descriptionClassName
+                    )}
+                  >
                     {description}
                   </Dialog.Description>
                 ) : null}
@@ -292,10 +327,20 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
 ModalInner.displayName = 'ModalInner';
 
 export const Modal = forwardRef<HTMLDivElement, ModalProps>((props, ref) => {
+  const insideModal = useContext(InsideModalContext);
   if (!props.open) {
     return;
   }
-  return <ModalInner {...props} ref={ref} />;
+  return (
+    <InsideModalContext.Provider value={insideModal + 1}>
+      <ModalInner {...props} ref={ref} />
+    </InsideModalContext.Provider>
+  );
 });
 
 Modal.displayName = 'Modal';
+
+export const useIsInsideModal = () => {
+  const context = useContext(InsideModalContext);
+  return context > 0;
+};

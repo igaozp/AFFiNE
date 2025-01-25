@@ -1,6 +1,6 @@
-import type { DocsService } from '@toeverything/infra';
 import { Entity, LiveData } from '@toeverything/infra';
 
+import type { DocsService } from '../../doc';
 import { Tag } from '../entities/tag';
 import type { TagStore } from '../stores/tag';
 

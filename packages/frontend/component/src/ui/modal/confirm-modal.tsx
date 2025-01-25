@@ -5,12 +5,16 @@ import { createContext, useCallback, useContext, useState } from 'react';
 
 import type { ButtonProps } from '../button';
 import { Button } from '../button';
+import { desktopStyles, mobileStyles } from './confirm-modal.css';
 import type { ModalProps } from './modal';
 import { Modal } from './modal';
-import * as styles from './styles.css';
+
+const styles = BUILD_CONFIG.isMobileEdition ? mobileStyles : desktopStyles;
 
 export interface ConfirmModalProps extends ModalProps {
+  customConfirmButton?: () => React.ReactNode;
   confirmButtonOptions?: Omit<ButtonProps, 'children'>;
+  childrenContentClassName?: string;
   onConfirm?: (() => void) | (() => Promise<void>);
   onCancel?: () => void;
   confirmText?: React.ReactNode;
@@ -27,6 +31,7 @@ export interface ConfirmModalProps extends ModalProps {
 export const ConfirmModal = ({
   children,
   confirmButtonOptions,
+  customConfirmButton: CustomConfirmButton,
   // FIXME: we need i18n
   confirmText,
   cancelText = 'Cancel',
@@ -36,6 +41,10 @@ export const ConfirmModal = ({
   onCancel,
   width = 480,
   autoFocusConfirm = true,
+  headerClassName,
+  descriptionClassName,
+  childrenContentClassName,
+  contentOptions,
   ...props
 }: ConfirmModalProps) => {
   const onConfirmClick = useCallback(() => {
@@ -46,7 +55,8 @@ export const ConfirmModal = ({
   return (
     <Modal
       contentOptions={{
-        className: styles.confirmModalContainer,
+        ...contentOptions,
+        className: clsx(styles.container, contentOptions?.className),
         onPointerDownOutside: e => {
           e.stopPropagation();
           onCancel?.();
@@ -56,34 +66,49 @@ export const ConfirmModal = ({
       closeButtonOptions={{
         onClick: onCancel,
       }}
+      headerClassName={clsx(styles.header, headerClassName)}
+      descriptionClassName={clsx(styles.description, descriptionClassName)}
       {...props}
     >
       {children ? (
-        <div className={styles.confirmModalContent}>{children}</div>
+        <div className={clsx(styles.content, childrenContentClassName)}>
+          {children}
+        </div>
       ) : null}
       <div
-        className={clsx(styles.modalFooter, {
+        className={clsx(styles.footer, {
           modalFooterWithChildren: !!children,
           reverse: reverseFooter,
         })}
       >
         <DialogTrigger asChild>
           <Button
+            className={styles.action}
             onClick={onCancel}
             data-testid="confirm-modal-cancel"
             {...cancelButtonOptions}
+            variant={
+              cancelButtonOptions?.variant
+                ? cancelButtonOptions.variant
+                : 'secondary'
+            }
           >
             {cancelText}
           </Button>
         </DialogTrigger>
-        <Button
-          onClick={onConfirmClick}
-          data-testid="confirm-modal-confirm"
-          autoFocus={autoFocusConfirm}
-          {...confirmButtonOptions}
-        >
-          {confirmText}
-        </Button>
+        {CustomConfirmButton ? (
+          <CustomConfirmButton data-testid="confirm-modal-confirm" />
+        ) : (
+          <Button
+            className={styles.action}
+            onClick={onConfirmClick}
+            data-testid="confirm-modal-confirm"
+            autoFocus={autoFocusConfirm}
+            {...confirmButtonOptions}
+          >
+            {confirmText}
+          </Button>
+        )}
       </div>
     </Modal>
   );

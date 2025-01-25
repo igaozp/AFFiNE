@@ -1,6 +1,5 @@
 import { DebugLogger } from '@affine/debug';
 import type { GetWorkspacePublicPagesQuery } from '@affine/graphql';
-import type { GlobalCache, WorkspaceService } from '@toeverything/infra';
 import {
   backoffRetry,
   catchErrorInto,
@@ -15,6 +14,8 @@ import {
 import { EMPTY, mergeMap } from 'rxjs';
 
 import { isBackendError, isNetworkError } from '../../cloud';
+import type { GlobalCache } from '../../storage';
+import type { WorkspaceService } from '../../workspace';
 import type { ShareDocsStore } from '../stores/share-docs';
 
 type ShareDocListType =
@@ -66,4 +67,8 @@ export class ShareDocsList extends Entity {
       )
     )
   );
+
+  override dispose(): void {
+    this.revalidate.unsubscribe();
+  }
 }

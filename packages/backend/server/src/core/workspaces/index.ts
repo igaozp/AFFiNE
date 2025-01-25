@@ -12,8 +12,10 @@ import { WorkspaceManagementResolver } from './management';
 import {
   DocHistoryResolver,
   PagePermissionResolver,
+  TeamWorkspaceResolver,
   WorkspaceBlobResolver,
   WorkspaceResolver,
+  WorkspaceService,
 } from './resolvers';
 
 @Module({
@@ -29,12 +31,15 @@ import {
   controllers: [WorkspacesController],
   providers: [
     WorkspaceResolver,
+    TeamWorkspaceResolver,
     WorkspaceManagementResolver,
     PagePermissionResolver,
     DocHistoryResolver,
     WorkspaceBlobResolver,
+    WorkspaceService,
   ],
+  exports: [WorkspaceService],
 })
 export class WorkspaceModule {}
 
-export type { InvitationType, WorkspaceType } from './types';
+export { InvitationType, WorkspaceType } from './types';

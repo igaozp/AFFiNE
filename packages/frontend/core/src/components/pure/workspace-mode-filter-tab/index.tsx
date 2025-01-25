@@ -1,10 +1,9 @@
 import { RadioGroup, type RadioItem } from '@affine/component';
-import type { AllPageFilterOption } from '@affine/core/atoms';
-import { allPageFilterSelectAtom } from '@affine/core/atoms';
-import { useNavigateHelper } from '@affine/core/hooks/use-navigate-helper';
-import { WorkspaceSubPath } from '@affine/core/shared';
+import type { AllPageFilterOption } from '@affine/core/components/atoms';
+import { allPageFilterSelectAtom } from '@affine/core/components/atoms';
+import { WorkbenchService } from '@affine/core/modules/workbench';
 import { useI18n } from '@affine/i18n';
-import { useService, WorkspaceService } from '@toeverything/infra';
+import { useService } from '@toeverything/infra';
 import { useAtom } from 'jotai';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -15,26 +14,25 @@ export const WorkspaceModeFilterTab = ({
 }: {
   activeFilter: AllPageFilterOption;
 }) => {
-  const workspace = useService(WorkspaceService).workspace;
   const t = useI18n();
   const [value, setValue] = useState(activeFilter);
   const [filterMode, setFilterMode] = useAtom(allPageFilterSelectAtom);
-  const { jumpToCollections, jumpToTags, jumpToSubPath } = useNavigateHelper();
+  const workbenchService = useService(WorkbenchService);
   const handleValueChange = useCallback(
     (value: AllPageFilterOption) => {
       switch (value) {
         case 'collections':
-          jumpToCollections(workspace.id);
+          workbenchService.workbench.openCollections();
           break;
         case 'tags':
-          jumpToTags(workspace.id);
+          workbenchService.workbench.openTags();
           break;
         case 'docs':
-          jumpToSubPath(workspace.id, WorkspaceSubPath.ALL);
+          workbenchService.workbench.openAll();
           break;
       }
     },
-    [jumpToCollections, jumpToSubPath, jumpToTags, workspace]
+    [workbenchService.workbench]
   );
 
   useEffect(() => {

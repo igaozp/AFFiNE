@@ -1,5 +1,5 @@
-import { defineStartupConfig, ModuleConfig } from '../../fundamentals/config';
-import { StorageProviderType } from '../../fundamentals/storage';
+import { defineStartupConfig, ModuleConfig } from '../../base/config';
+import { StorageProviderType } from '../../base/storage';
 
 export type StorageConfig<Ext = unknown> = {
   provider: StorageProviderType;
@@ -14,7 +14,7 @@ export interface StorageStartupConfigurations {
   blob: StorageConfig;
 }
 
-declare module '../../fundamentals/config' {
+declare module '../../base/config' {
   interface AppConfig {
     storages: ModuleConfig<StorageStartupConfigurations>;
   }

@@ -1,4 +1,5 @@
-import { useLiveData, useService, WorkspaceService } from '@toeverything/infra';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useEffect } from 'react';
 
 import { AuthService } from '../../../modules/cloud';

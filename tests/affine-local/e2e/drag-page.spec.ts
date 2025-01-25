@@ -1,16 +1,16 @@
-/* eslint-disable unicorn/prefer-dom-node-dataset */
 import { test } from '@affine-test/kit/playwright';
 import { openHomePage } from '@affine-test/kit/utils/load-page';
 import {
   clickNewPageButton,
+  createLinkedPage,
   dragTo,
-  getBlockSuiteEditorTitle,
   waitForEditorLoad,
 } from '@affine-test/kit/utils/page-logic';
 import { clickSideBarAllPageButton } from '@affine-test/kit/utils/sidebar';
 import {
   getCurrentCollectionIdFromUrl,
   getCurrentDocIdFromUrl,
+  getDocIdFromUrl,
 } from '@affine-test/kit/utils/url';
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
@@ -32,10 +32,10 @@ const dragToFavourites = async (
 
 const createCollection = async (page: Page, name: string) => {
   await page.getByTestId('explorer-bar-add-collection-button').click();
-  const input = page.getByTestId('input-collection-title');
+  const input = page.getByTestId('prompt-modal-input');
   await expect(input).toBeVisible();
   await input.fill(name);
-  await page.getByTestId('save-collection').click();
+  await page.getByTestId('prompt-modal-confirm').click();
   const newCollectionId = getCurrentCollectionIdFromUrl(page);
   const collection = page.getByTestId(`explorer-collection-${newCollectionId}`);
   await expect(collection).toBeVisible();
@@ -43,8 +43,7 @@ const createCollection = async (page: Page, name: string) => {
 };
 
 const createPage = async (page: Page, title: string) => {
-  await clickNewPageButton(page);
-  await getBlockSuiteEditorTitle(page).fill(title);
+  await clickNewPageButton(page, title);
 };
 
 const dragToCollection = async (page: Page, dragItem: Locator) => {
@@ -211,4 +210,106 @@ test('items in favourites can be reordered by dragging', async ({ page }) => {
   await expect(
     page.getByTestId('explorer-favorites').locator('[draggable]').last()
   ).toHaveText('test collection');
+});
+
+test('drag a page link in editor to favourites', async ({ page }) => {
+  await clickNewPageButton(page);
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Enter');
+  await createLinkedPage(page, 'hi from another page');
+
+  const pageReference = page.locator('a').filter({
+    has: page.locator(
+      '.affine-reference-title:has-text("hi from another page")'
+    ),
+  });
+
+  const pageLink = await pageReference.evaluate(
+    el => (el as HTMLAnchorElement).href
+  );
+
+  expect(pageLink).toBeTruthy();
+
+  if (!pageLink) {
+    return;
+  }
+
+  const pageId = getDocIdFromUrl(pageLink);
+
+  await dragToFavourites(
+    page,
+    page.locator('.affine-reference-title:has-text("hi from another page")'),
+    pageId
+  );
+});
+
+test('drag a page card block to another page', async ({ page }) => {
+  await clickNewPageButton(page);
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Enter');
+  await createLinkedPage(page, 'hi from another page');
+
+  const pageReference = page.locator('a').filter({
+    has: page.locator(
+      '.affine-reference-title:has-text("hi from another page")'
+    ),
+  });
+
+  const pageLink = await pageReference.evaluate(
+    el => (el as HTMLAnchorElement).href
+  );
+
+  expect(pageLink).toBeTruthy();
+
+  if (!pageLink) {
+    return;
+  }
+
+  const pageId = getDocIdFromUrl(pageLink);
+
+  await pageReference.hover();
+
+  const inlineToolbar = page.locator('reference-popup');
+
+  // convert page reference to card block
+  await inlineToolbar.getByRole('button', { name: 'Switch view' }).click();
+  await inlineToolbar.getByRole('button', { name: 'Card view' }).click();
+
+  // hover the card block to show the drag handle
+  const box = await page.locator('affine-embed-linked-doc-block').boundingBox();
+
+  expect(box).toBeTruthy();
+
+  if (!box) {
+    return;
+  }
+
+  await page.mouse.move(box.x - 5, box.y + box.height / 2);
+
+  await dragToFavourites(
+    page,
+    page.locator('.affine-drag-handle-container'),
+    pageId
+  );
+});
+
+test('drag a favourite page into blocksuite', async ({ page }) => {
+  await clickNewPageButton(page, 'hi from page');
+  await page.getByTestId('pin-button').click();
+  const pageId = getCurrentDocIdFromUrl(page);
+  const item = page
+    .getByTestId(`explorer-favorites`)
+    .locator(`[data-testid="explorer-doc-${pageId}"]`);
+  await expect(item).toBeVisible();
+
+  // drag item into blocksuite editor
+  await dragTo(
+    page,
+    item,
+    page.locator('.affine-paragraph-block-container').first()
+  );
+
+  await expect(page.locator('affine-embed-linked-doc-block')).toContainText(
+    'hi from page'
+  );
 });

@@ -1,8 +1,7 @@
 import { type PasswordLimitsFragment } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { type Options, passwordStrength } from 'check-password-strength';
-import { type FC, useEffect, useMemo } from 'react';
-import { useCallback, useState } from 'react';
+import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { z, type ZodCustomIssue, ZodIssueCode } from 'zod';
 
 import type { InputProps } from '../../../ui/input';

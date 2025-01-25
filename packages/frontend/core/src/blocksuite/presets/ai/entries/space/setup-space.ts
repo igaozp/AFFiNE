@@ -1,4 +1,5 @@
-import type { AffineAIPanelWidget } from '@blocksuite/blocks';
+import { TextSelection } from '@blocksuite/affine/block-std';
+import type { AffineAIPanelWidget } from '@blocksuite/affine/blocks';
 
 import { handleInlineAskAIAction } from '../../actions/doc-handler';
 import { AIProvider } from '../../provider';
@@ -12,7 +13,7 @@ export function setupSpaceAIEntry(panel: AffineAIPanelWidget) {
       keyboardState.raw.key === ' ' &&
       !keyboardState.raw.isComposing
     ) {
-      const selection = host.selection.find('text');
+      const selection = host.selection.find(TextSelection);
       if (selection && selection.isCollapsed() && selection.from.index === 0) {
         const block = host.view.getBlock(selection.blockId);
         if (!block?.model?.text || block.model.text?.length > 0) return;

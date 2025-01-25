@@ -2,16 +2,14 @@
   "name": "@affine/i18n",
   "description": "",
   "type": "module",
+  "private": true,
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "build": "node build.mjs",
-    "dev": "node dev.mjs",
-    "sync-languages": "node --loader ts-node/esm/transpile-only src/scripts/sync.ts",
-    "sync-languages:check": "yarn run sync-languages --check",
-    "download-resources": "node --loader ts-node/esm/transpile-only src/scripts/download.ts"
+    "dev": "node build.mjs --dev"
   },
   "keywords": [],
   "repository": {
@@ -19,19 +17,17 @@
     "url": "git+https://github.com/toeverything/AFFiNE.git"
   },
   "dependencies": {
-    "@magic-works/i18n-codegen": "^0.6.0",
-    "dayjs": "^1.11.11",
-    "i18next": "^23.11.1",
-    "react": "^18.2.0",
-    "react-i18next": "^15.0.0",
-    "undici": "^6.12.0"
+    "@affine/debug": "workspace:*",
+    "@magic-works/i18n-codegen": "^0.6.1",
+    "dayjs": "^1.11.13",
+    "i18next": "^24.1.0",
+    "react": "^19.0.0",
+    "react-i18next": "^15.2.0",
+    "undici": "^7.1.0"
   },
   "devDependencies": {
-    "@types/prettier": "^3.0.0",
-    "prettier": "^3.2.5",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.4.5",
-    "vitest": "2.0.5"
+    "glob": "^11.0.0",
+    "vitest": "3.0.2"
   },
-  "version": "0.16.0"
+  "version": "0.19.0"
 }

@@ -61,6 +61,7 @@ describe('Entity validations', () => {
       id: f.string().primaryKey().default(nanoid),
       name: f.string(),
       color: f.string(),
+      status: f.enum('active', 'inactive').optional(),
     },
   });
 
@@ -129,5 +130,16 @@ describe('Entity validations', () => {
 
       expect(tag.info).toBe(null);
     });
+  });
+
+  test('should throw when trying to create entity with invalid enum value', () => {
+    const client = createTagsClient();
+
+    expect(() =>
+      // @ts-expect-error test
+      client.tags.create({ name: 'test', status: 'not-active' })
+    ).toThrow(
+      "[Table(tags)]: Field 'status' value 'not-active' is not valid. Expected one of [active, inactive]."
+    );
   });
 });

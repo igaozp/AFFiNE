@@ -7,7 +7,8 @@ export const root = style({
   gap: 8,
   '@media': {
     'screen and (width <= 640px)': {
-      flexDirection: 'row',
+      flexDirection: 'row-reverse',
+      width: '100%',
     },
   },
 });
@@ -16,4 +17,14 @@ export const button = style({
   borderRadius: 8,
   width: 32,
   height: 32,
+  '@media': {
+    'screen and (width <= 640px)': {
+      selectors: {
+        [`[data-action-name="close"]&`]: {
+          marginLeft: 'auto',
+          order: 0,
+        },
+      },
+    },
+  },
 });

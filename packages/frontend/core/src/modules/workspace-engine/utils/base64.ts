@@ -21,7 +21,7 @@ export function uint8ArrayToBase64(array: Uint8Array): Promise<string> {
 
 export function base64ToUint8Array(base64: string) {
   const binaryString = atob(base64);
-  const binaryArray = binaryString.split('').map(function (char) {
+  const binaryArray = [...binaryString].map(function (char) {
     return char.charCodeAt(0);
   });
   return new Uint8Array(binaryArray);

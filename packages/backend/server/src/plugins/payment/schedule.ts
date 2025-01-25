@@ -63,8 +63,8 @@ export class ScheduleManager {
   }
 
   async fromSubscription(
-    idempotencyKey: string,
-    subscription: string | Stripe.Subscription
+    subscription: string | Stripe.Subscription,
+    idempotencyKey?: string
   ) {
     if (typeof subscription === 'string') {
       subscription = await this.stripe.subscriptions.retrieve(subscription, {
@@ -88,7 +88,7 @@ export class ScheduleManager {
    * Cancel a subscription by marking schedule's end behavior to `cancel`.
    * At the same time, the coming phase's price and coupon will be saved to metadata for later resuming to correction subscription.
    */
-  async cancel(idempotencyKey: string) {
+  async cancel(idempotencyKey?: string) {
     if (!this._schedule) {
       throw new Error('No schedule');
     }
@@ -101,7 +101,7 @@ export class ScheduleManager {
       items: [
         {
           price: this.currentPhase.items[0].price as string,
-          quantity: 1,
+          quantity: this.currentPhase.items[0].quantity,
         },
       ],
       coupon: (this.currentPhase.coupon as string | null) ?? undefined,
@@ -129,7 +129,7 @@ export class ScheduleManager {
     );
   }
 
-  async resume(idempotencyKey: string) {
+  async resume(idempotencyKey?: string) {
     if (!this._schedule) {
       throw new Error('No schedule');
     }
@@ -143,10 +143,9 @@ export class ScheduleManager {
         items: [
           {
             price: this.currentPhase.items[0].price as string,
-            quantity: 1,
+            quantity: this.currentPhase.items[0].quantity,
           },
         ],
-        coupon: (this.currentPhase.coupon as string | null) ?? undefined,
         start_date: this.currentPhase.start_date,
         end_date: this.currentPhase.end_date,
         metadata: {
@@ -161,7 +160,7 @@ export class ScheduleManager {
         items: [
           {
             price: this.currentPhase.metadata.next_price,
-            quantity: 1,
+            quantity: this.currentPhase.items[0].quantity,
           },
         ],
         coupon: this.currentPhase.metadata.next_coupon || undefined,
@@ -188,7 +187,7 @@ export class ScheduleManager {
     });
   }
 
-  async update(idempotencyKey: string, price: string) {
+  async update(price: string, idempotencyKey?: string) {
     if (!this._schedule) {
       throw new Error('No schedule');
     }
@@ -212,6 +211,7 @@ export class ScheduleManager {
               items: [
                 {
                   price: this.currentPhase.items[0].price as string,
+                  quantity: this.currentPhase.items[0].quantity,
                 },
               ],
               start_date: this.currentPhase.start_date,
@@ -221,6 +221,7 @@ export class ScheduleManager {
               items: [
                 {
                   price: price,
+                  quantity: this.currentPhase.items[0].quantity,
                 },
               ],
             },
@@ -229,5 +230,32 @@ export class ScheduleManager {
         { idempotencyKey }
       );
     }
+  }
+
+  async updateQuantity(quantity: number, idempotencyKey?: string) {
+    if (!this._schedule) {
+      throw new Error('No schedule');
+    }
+
+    if (!this.isActive || !this.currentPhase) {
+      throw new Error('Unexpected subscription schedule status');
+    }
+
+    await this.stripe.subscriptionSchedules.update(
+      this._schedule.id,
+      {
+        phases: this._schedule.phases.map(phase => ({
+          items: [
+            {
+              price: phase.items[0].price as string,
+              quantity,
+            },
+          ],
+          start_date: phase.start_date,
+          end_date: phase.end_date,
+        })),
+      },
+      { idempotencyKey }
+    );
   }
 }

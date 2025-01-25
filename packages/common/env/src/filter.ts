@@ -1,4 +1,4 @@
-import type { DocCollection } from '@blocksuite/store';
+import type { DocsPropertiesMeta } from '@blocksuite/affine/store';
 import { z } from 'zod';
 
 export const literalValueSchema: z.ZodType<LiteralValue, z.ZodTypeDef> =
@@ -29,7 +29,6 @@ export type Ref = {
   name: keyof VariableMap;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface VariableMap {}
 
 export const literalSchema = z.object({
@@ -85,4 +84,4 @@ export const tagSchema = z.object({
 });
 export type Tag = z.input<typeof tagSchema>;
 
-export type PropertiesMeta = DocCollection['meta']['properties'];
+export type PropertiesMeta = DocsPropertiesMeta;

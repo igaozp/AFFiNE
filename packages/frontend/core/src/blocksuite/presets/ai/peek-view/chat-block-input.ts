@@ -1,11 +1,11 @@
-import type { EditorHost } from '@blocksuite/block-std';
-import { type AIError, openFileOrFiles } from '@blocksuite/blocks';
-import { type ChatMessage } from '@blocksuite/presets';
+import type { EditorHost } from '@blocksuite/affine/block-std';
+import { type AIError, openFileOrFiles } from '@blocksuite/affine/blocks';
 import { css, html, LitElement, nothing } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
+import { property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
 
+import type { ChatMessage } from '../../../blocks';
 import {
   ChatAbortIcon,
   ChatClearIcon,
@@ -20,7 +20,6 @@ import type { ChatContext } from './types';
 
 const MaximumImageCount = 8;
 
-@customElement('chat-block-input')
 export class ChatBlockInput extends LitElement {
   static override styles = css`
     :host {
@@ -404,7 +403,7 @@ export class ChatBlockInput extends LitElement {
       let chatSessionId = currentSessionId;
       if (!chatSessionId) {
         const forkSessionId = await AIProvider.forkChat?.({
-          workspaceId: doc.collection.id,
+          workspaceId: doc.workspace.id,
           docId: doc.id,
           sessionId: this.parentSessionId,
           latestMessageId: this.latestMessageId,
@@ -422,7 +421,7 @@ export class ChatBlockInput extends LitElement {
         sessionId: chatSessionId,
         docId: doc.id,
         attachments: images,
-        workspaceId: doc.collection.id,
+        workspaceId: doc.workspace.id,
         host: this.host,
         stream: true,
         signal: abortController.signal,

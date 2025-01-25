@@ -44,19 +44,9 @@ const config: PlaywrightTestConfig = {
   reporter: process.env.CI ? 'github' : 'list',
 
   webServer: [
-    {
-      command: 'yarn run serve:test-static',
-      port: 8081,
-      timeout: 120 * 1000,
-      reuseExistingServer: !process.env.CI,
-      env: {
-        COVERAGE: process.env.COVERAGE || 'false',
-        ENABLE_DEBUG_PAGE: '1',
-      },
-    },
     // Intentionally not building the web, reminds you to run it by yourself.
     {
-      command: 'yarn run start:web-static',
+      command: 'yarn run -T affine dev -p @affine/web',
       port: 8080,
       timeout: 120 * 1000,
       reuseExistingServer: !process.env.CI,

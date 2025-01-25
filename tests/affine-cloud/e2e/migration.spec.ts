@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 
-import { test } from '@affine-test/kit/playwright';
+import { Path, test } from '@affine-test/kit/playwright';
 import {
   createRandomUser,
   deleteUser,
@@ -30,7 +29,7 @@ test.beforeEach(async () => {
 });
 
 test.beforeEach(async ({ page, context }) => {
-  await loginUser(page, user.email, {
+  await loginUser(page, user, {
     beforeLogin: async () => {
       expect(await getLoginCookie(context)).toBeUndefined();
     },
@@ -56,7 +55,7 @@ test.skip('migration', async ({ page, browser }) => {
     // create the old cloud workspace in another browser
     const context = await browser.newContext();
     const page = await context.newPage();
-    await loginUser(page, user.email);
+    await loginUser(page, user);
     await page.reload();
     await createLocalWorkspace(
       {
@@ -72,7 +71,10 @@ test.skip('migration', async ({ page, browser }) => {
     await runPrisma(async client => {
       const sqls = (
         await readFile(
-          resolve(__dirname, 'fixtures', '0.9.0-canary.9-snapshots.sql'),
+          Path.dir(import.meta.url).join(
+            'fixtures',
+            '0.9.0-canary.9-snapshots.sql'
+          ).value,
           'utf-8'
         )
       )

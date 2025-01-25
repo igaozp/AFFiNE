@@ -40,7 +40,7 @@ export function Prompts() {
         <div className="flex flex-col rounded-md border w-full">
           {list.map((item, index) => (
             <PromptRow
-              key={item.name.concat(index.toString())}
+              key={`${item.name}-${index}`}
               item={item}
               index={index}
             />

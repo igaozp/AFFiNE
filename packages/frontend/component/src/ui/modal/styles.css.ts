@@ -51,11 +51,22 @@ const contentHideSlideBottom = keyframes({
   from: { transform: 'translateY(0)' },
   to: { transform: 'translateY(100%)' },
 });
+const contentShowSlideRight = keyframes({
+  from: { transform: 'translateX(100%)' },
+  to: { transform: 'translateX(0)' },
+});
+const contentHideSlideRight = keyframes({
+  from: { transform: 'translateX(0)' },
+  to: { transform: 'translateX(100%)' },
+});
 const modalContentViewTransitionNameFadeScaleTop = generateIdentifier(
   'modal-content-fade-scale-top'
 );
 const modalContentViewTransitionNameSlideBottom = generateIdentifier(
   'modal-content-slide-bottom'
+);
+const modalContentViewTransitionNameSlideRight = generateIdentifier(
+  'modal-content-slide-right'
 );
 export const modalOverlay = style({
   position: 'fixed',
@@ -68,7 +79,7 @@ export const modalOverlay = style({
       animation: 'none',
     },
     '&.mobile': {
-      backgroundColor: cssVarV2('layer/mobile/modal'),
+      backgroundColor: cssVarV2('layer/background/mobile/modal'),
     },
   },
 });
@@ -79,15 +90,12 @@ export const modalContentWrapper = style({
   alignItems: 'center',
   justifyContent: 'center',
   zIndex: cssVar('zIndexModal'),
-  '@media': {
-    'screen and (width <= 640px)': {
-      // todo: adjust animation
+
+  selectors: {
+    '&[data-mobile]': {
       alignItems: 'flex-end',
       paddingBottom: 'env(safe-area-inset-bottom, 20px)',
     },
-  },
-
-  selectors: {
     '&[data-full-screen="true"]': {
       padding: '0 !important',
     },
@@ -108,6 +116,13 @@ export const modalContentWrapper = style({
     [`${vtScopeSelector(modalVTScope)} &.anim-slideBottom.vt-active`]: {
       viewTransitionName: modalContentViewTransitionNameSlideBottom,
     },
+    '&.anim-slideRight': {
+      animation: `${contentShowSlideRight} 0.23s ease`,
+      animationFillMode: 'forwards',
+    },
+    [`${vtScopeSelector(modalVTScope)} &.anim-slideRight.vt-active`]: {
+      viewTransitionName: modalContentViewTransitionNameSlideRight,
+    },
   },
 });
 globalStyle(
@@ -124,6 +139,13 @@ globalStyle(
     animationFillMode: 'forwards',
   }
 );
+globalStyle(
+  `::view-transition-old(${modalContentViewTransitionNameSlideRight})`,
+  {
+    animation: `${contentHideSlideRight} 0.23s ease`,
+    animationFillMode: 'forwards',
+  }
+);
 
 export const modalContent = style({
   vars: {
@@ -134,8 +156,8 @@ export const modalContent = style({
   width: widthVar,
   height: heightVar,
   minHeight: minHeightVar,
-  maxHeight: 'calc(100vh - 32px)',
-  maxWidth: 'calc(100vw - 20px)',
+  maxHeight: 'calc(100dvh - 32px)',
+  maxWidth: 'calc(100dvw - 20px)',
   boxSizing: 'border-box',
   fontSize: cssVar('fontBase'),
   fontWeight: '400',
@@ -151,12 +173,12 @@ export const modalContent = style({
   selectors: {
     '[data-full-screen="true"] &': {
       vars: {
-        [widthVar]: '100vw',
-        [heightVar]: '100vh',
-        [minHeightVar]: '100vh',
+        [widthVar]: '100dvw',
+        [heightVar]: '100dvh',
+        [minHeightVar]: '100dvh',
       },
-      maxWidth: '100vw',
-      maxHeight: '100vh',
+      maxWidth: '100dvw',
+      maxHeight: '100dvh',
       borderRadius: 0,
     },
   },
@@ -178,34 +200,6 @@ export const modalDescription = style({
   whiteSpace: 'pre-wrap',
   overflowWrap: 'break-word',
 });
-export const modalFooter = style({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  alignItems: 'center',
-  paddingTop: '40px',
-  marginTop: 'auto',
-  gap: '20px',
-  selectors: {
-    '&.modalFooterWithChildren': {
-      paddingTop: '20px',
-    },
-    '&.reverse': {
-      flexDirection: 'row-reverse',
-      justifyContent: 'flex-start',
-    },
-  },
-});
-export const confirmModalContent = style({
-  marginTop: '12px',
-  marginBottom: '20px',
-  height: '100%',
-  overflowY: 'auto',
-  padding: '0 4px',
-});
-export const confirmModalContainer = style({
-  display: 'flex',
-  flexDirection: 'column',
-});
 
 globalStyle(`[data-modal="false"]${modalContentWrapper}`, {
   pointerEvents: 'none',
@@ -213,10 +207,4 @@ globalStyle(`[data-modal="false"]${modalContentWrapper}`, {
 
 globalStyle(`[data-modal="false"] ${modalContent}`, {
   pointerEvents: 'auto',
-});
-
-export const promptModalContent = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '12px',
 });

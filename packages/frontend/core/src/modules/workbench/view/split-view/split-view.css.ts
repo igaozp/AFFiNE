@@ -1,55 +1,61 @@
-import { cssVar } from '@toeverything/theme';
-import { createVar, style } from '@vanilla-extract/css';
+import { cssVarV2 } from '@toeverything/theme/v2';
+import { createVar, fallbackVar, keyframes, style } from '@vanilla-extract/css';
 
 const gap = createVar();
 const borderRadius = createVar();
+const resizeHandleWidth = createVar();
+export const size = createVar();
+export const panelOrder = createVar();
+const dropIndicatorWidth = createVar();
+const dropIndicatorOpacity = createVar();
+const dropIndicatorRadius = createVar();
 
-export const splitViewRoot = style({
-  vars: {
-    [gap]: '0px',
-    [borderRadius]: '0px',
-  },
-  display: 'flex',
-  flexDirection: 'row',
-  position: 'relative',
-  borderRadius,
-  gap,
-
-  selectors: {
-    '&[data-client-border="true"]': {
-      vars: {
-        [gap]: '8px',
-        [borderRadius]: '6px',
-      },
+const expandDropIndicator = keyframes({
+  from: {
+    vars: {
+      [resizeHandleWidth]: '50px',
+      [dropIndicatorWidth]: '3px',
+      [dropIndicatorOpacity]: '1',
+      [dropIndicatorRadius]: '10px',
     },
-    '&[data-orientation="vertical"]': {
-      flexDirection: 'column',
+  },
+  to: {
+    vars: {
+      [resizeHandleWidth]: '300px',
+      [dropIndicatorWidth]: '100%',
+      [dropIndicatorOpacity]: '0.15',
+      [dropIndicatorRadius]: '4px',
     },
   },
 });
 
 export const splitViewPanel = style({
   flexShrink: 0,
-  flexGrow: 'var(--size, 1)',
+  flexGrow: fallbackVar(size, '1'),
   position: 'relative',
-  borderRadius: 'inherit',
+  order: panelOrder,
+  display: 'flex',
 
   selectors: {
-    '[data-orientation="vertical"] &': {
-      height: 0,
+    '[data-is-resizing="true"]&': {
+      transition: 'none',
     },
-    '[data-orientation="horizontal"] &': {
-      width: 0,
+    '[data-is-reordering="true"]&': {
+      flexGrow: 1,
+    },
+    '[data-client-border="false"] &[data-is-first="true"]': {
+      borderTopLeftRadius: borderRadius,
     },
     '[data-client-border="false"] &:not([data-is-last="true"]):not([data-is-dragging="true"])':
       {
-        borderRight: `0.5px solid ${cssVar('borderColor')}`,
+        borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
       },
-    '&[data-is-dragging="true"]': {
-      zIndex: 1,
-    },
     '[data-client-border="true"] &': {
-      border: `0.5px solid ${cssVar('borderColor')}`,
+      border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+      borderTopLeftRadius: borderRadius,
+      borderBottomLeftRadius: borderRadius,
+      borderTopRightRadius: borderRadius,
+      borderBottomRightRadius: borderRadius,
     },
   },
 });
@@ -58,6 +64,7 @@ export const splitViewPanelDrag = style({
   width: '100%',
   height: '100%',
   borderRadius: 'inherit',
+  transition: 'opacity 0.2s',
 
   selectors: {
     '&::after': {
@@ -73,8 +80,12 @@ export const splitViewPanelDrag = style({
       transition: 'box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
     },
 
-    '[data-is-dragging="true"] &::after': {
-      boxShadow: `inset 0 0 0 2px ${cssVar('brandColor')}`,
+    '[data-is-active="true"]&::after': {
+      boxShadow: `inset 0 0 0 1px ${cssVarV2('button/primary')}`,
+    },
+
+    '[data-is-dragging="true"] &': {
+      opacity: 0.5,
     },
   },
 });
@@ -90,49 +101,123 @@ export const resizeHandle = style({
   position: 'absolute',
   top: 0,
   bottom: 0,
-  right: -5,
-  width: 10,
+  width: resizeHandleWidth,
   // to make sure it's above all-pages's header
-  zIndex: 3,
+  zIndex: 5,
 
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'stretch',
-  cursor: 'col-resize',
 
   selectors: {
-    '[data-client-border="true"] &': {
-      right: `calc(-5px - ${gap} / 2)`,
+    '&[data-can-resize="false"]:not([data-state="drop-indicator"])': {
+      pointerEvents: 'none',
+    },
+
+    '&[data-state="drop-indicator"]': {
+      vars: {
+        [resizeHandleWidth]: '50px',
+      },
+    },
+    '&[data-edge="left"]': {
+      left: `calc(${resizeHandleWidth} * -0.5)`,
+      right: 'auto',
+    },
+    '&[data-edge="right"]': {
+      left: 'auto',
+      right: `calc(${resizeHandleWidth} * -0.5)`,
+    },
+    '&[data-edge="right"][data-is-last="true"]': {
+      right: 0,
+      left: 'auto',
+    },
+    '[data-client-border="false"] &[data-is-last="true"][data-edge="right"]::before, [data-client-border="false"] &[data-is-last="true"][data-edge="right"]::after':
+      {
+        transform: `translateX(calc(0.5 * ${resizeHandleWidth} - 1px))`,
+      },
+
+    '&[data-can-resize="true"]': {
+      cursor: 'col-resize',
+    },
+    '[data-client-border="true"] &[data-edge="right"]': {
+      right: `calc(${resizeHandleWidth} * -0.5 - 0.5px - ${gap} / 2)`,
     },
     [`.${splitViewPanel}[data-is-dragging="true"] &`]: {
       display: 'none',
     },
 
-    // horizontal
-    '[data-orientation="horizontal"] &::before, [data-orientation="horizontal"] &::after':
-      {
-        content: '""',
-        width: 2,
-        position: 'absolute',
-        height: '100%',
-        background: 'transparent',
-        transition: 'background 0.1s',
-        borderRadius: 10,
+    '&[data-state="drop-indicator"][data-dragging-over="true"]': {
+      animationName: expandDropIndicator,
+      animationDuration: '0.5s',
+      animationDelay: '1s',
+      animationFillMode: 'forwards',
+      vars: {
+        [dropIndicatorOpacity]: '1',
+        [dropIndicatorWidth]: '3px',
       },
-    '[data-orientation="horizontal"] &[data-resizing]::before, [data-orientation="horizontal"] &[data-resizing]::after':
-      {
-        width: 3,
-      },
-
-    '&:hover::before, &[data-resizing]::before': {
-      background: cssVar('brandColor'),
     },
-    '&:hover::after, &[data-resizing]::after': {
-      boxShadow: `0px 12px 21px 4px ${cssVar('brandColor')}`,
+
+    '&::before, &::after': {
+      content: '""',
+      width: dropIndicatorWidth,
+      position: 'absolute',
+      height: '100%',
+      transition: 'all 0.2s, transform 0s',
+      borderRadius: dropIndicatorRadius,
+    },
+    '&::before': {
+      background: cssVarV2('button/primary'),
+      opacity: dropIndicatorOpacity,
+    },
+    '&[data-state="resizing"]::before, &[data-state="resizing"]::after': {
+      vars: {
+        [dropIndicatorWidth]: '3px',
+        [dropIndicatorOpacity]: '1',
+      },
+    },
+    '&[data-state="drop-indicator"][data-dragging-over="false"]::before': {
+      vars: {
+        [dropIndicatorOpacity]: '0.5',
+      },
+    },
+    '&:is(:hover[data-can-resize="true"], [data-state="resizing"])::before': {
+      vars: {
+        [dropIndicatorWidth]: '3px',
+        [dropIndicatorOpacity]: '1',
+      },
+    },
+    '&:is(:hover[data-can-resize="true"], [data-state="resizing"])::after': {
+      boxShadow: `0px 12px 21px 4px ${cssVarV2('button/primary')}`,
       opacity: 0.15,
     },
+  },
+});
 
-    // vertical
-    // TODO
+export const splitViewRoot = style({
+  vars: {
+    [gap]: '0px',
+    [borderRadius]: '6px',
+    [resizeHandleWidth]: '10px',
+    [dropIndicatorWidth]: '2px',
+    [dropIndicatorOpacity]: '0',
+    [dropIndicatorRadius]: '10px',
+  },
+  display: 'flex',
+  flexDirection: 'row',
+  position: 'relative',
+  borderRadius,
+  gap,
+  padding: '0 10px',
+  margin: '0 -10px',
+
+  selectors: {
+    '&[data-client-border="true"]': {
+      vars: {
+        [gap]: '8px',
+      },
+    },
+    [`&:has(${resizeHandle}[data-dragging-over="true"])`]: {
+      overflow: 'clip',
+    },
   },
 });

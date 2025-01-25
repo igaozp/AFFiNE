@@ -10,10 +10,6 @@ export const useNavConfig = () => {
         path: 'https://affine.pro',
       },
       {
-        title: t['com.affine.other-page.nav.affine-community'](),
-        path: 'https://community.affine.pro/home',
-      },
-      {
         title: t['com.affine.other-page.nav.blog'](),
         path: 'https://affine.pro/blog',
       },

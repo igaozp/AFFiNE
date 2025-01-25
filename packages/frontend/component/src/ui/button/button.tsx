@@ -4,6 +4,7 @@ import type {
   HTMLAttributes,
   MouseEvent,
   ReactElement,
+  SVGAttributes,
 } from 'react';
 import { cloneElement, forwardRef, useCallback } from 'react';
 
@@ -53,7 +54,7 @@ export interface ButtonProps
    *
    * If `loading` is true, will be replaced by a spinner.(`prefixClassName` and `prefixStyle` still work)
    * */
-  prefix?: ReactElement;
+  prefix?: ReactElement<SVGAttributes<SVGElement>>;
   prefixClassName?: string;
   prefixStyle?: CSSProperties;
   contentClassName?: string;
@@ -63,13 +64,14 @@ export interface ButtonProps
    * By default, it is considered as an icon with preset size and color,
    * can be overridden by `suffixClassName` and `suffixStyle`.
    * */
-  suffix?: ReactElement;
+  suffix?: ReactElement<SVGAttributes<SVGElement>>;
   suffixClassName?: string;
   suffixStyle?: CSSProperties;
 
   tooltip?: TooltipProps['content'];
   tooltipShortcut?: TooltipProps['shortcut'];
   tooltipOptions?: Partial<Omit<TooltipProps, 'content' | 'shortcut'>>;
+  [key: `data-${string}`]: string;
 }
 
 const IconSlot = ({
@@ -78,7 +80,7 @@ const IconSlot = ({
   className,
   ...attrs
 }: {
-  icon?: ReactElement;
+  icon?: ReactElement<SVGAttributes<SVGElement>>;
   loading?: boolean;
 } & HTMLAttributes<HTMLElement>) => {
   const showLoadingHere = loading !== undefined;
@@ -90,7 +92,7 @@ const IconSlot = ({
         ? cloneElement(icon, {
             width: '100%',
             height: '100%',
-            ...icon.props,
+            ...(icon.props as Record<string, unknown>),
           })
         : null}
     </div>
@@ -161,7 +163,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           data-disabled={disabled || undefined}
           data-size={size}
           data-variant={variant}
-          data-no-hover={withoutHover || undefined}
+          data-no-hover={
+            withoutHover || BUILD_CONFIG.isMobileEdition || undefined
+          }
+          data-mobile={BUILD_CONFIG.isMobileEdition}
           onClick={handleClick}
         >
           <IconSlot

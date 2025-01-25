@@ -2,13 +2,19 @@ import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron, CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaClient } from '@prisma/client';
 
-import { CallTimer, Config, metrics } from '../../fundamentals';
+import {
+  CallMetric,
+  Config,
+  type EventPayload,
+  metrics,
+  OnEvent,
+} from '../../base';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
 
 @Injectable()
 export class DocStorageCronJob implements OnModuleInit {
-  private readonly logger = new Logger(DocStorageCronJob.name);
   private busy = false;
+  private readonly logger = new Logger(DocStorageCronJob.name);
 
   constructor(
     private readonly config: Config,
@@ -41,7 +47,7 @@ export class DocStorageCronJob implements OnModuleInit {
     }
   }
 
-  @CallTimer('doc', 'auto_merge_pending_doc_updates')
+  @CallMetric('doc', 'auto_merge_pending_doc_updates')
   async autoMergePendingDocUpdates() {
     try {
       const randomDoc = await this.workspace.randomDoc();
@@ -72,5 +78,12 @@ export class DocStorageCronJob implements OnModuleInit {
     metrics.doc
       .gauge('updates_queue_count')
       .record(await this.db.update.count());
+  }
+
+  @OnEvent('user.deleted')
+  async clearUserWorkspaces(payload: EventPayload<'user.deleted'>) {
+    for (const workspace of payload.ownedWorkspaces) {
+      await this.workspace.deleteSpace(workspace);
+    }
   }
 }

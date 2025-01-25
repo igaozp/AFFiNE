@@ -125,6 +125,6 @@ describe('ORM hook mixin', () => {
     // @ts-expect-error private
     const rawTag = client.tags.adapter.data.get(tag.id);
     expect(rawTag.color).toBe('red');
-    expect(rawTag.colors).toBe(null);
+    expect(rawTag.colors).toBe(undefined);
   });
 });

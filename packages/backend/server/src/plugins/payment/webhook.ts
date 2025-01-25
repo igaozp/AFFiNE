@@ -1,63 +1,63 @@
-import assert from 'node:assert';
-
-import type { RawBodyRequest } from '@nestjs/common';
-import { Controller, Logger, Post, Req } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import type { Request } from 'express';
+import { Injectable } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import Stripe from 'stripe';
 
-import { Public } from '../../core/auth';
-import { Config, InternalServerError } from '../../fundamentals';
+import { SubscriptionService } from './service';
 
-@Controller('/api/stripe')
+const OnStripeEvent = (
+  event: Stripe.Event.Type,
+  opts?: Parameters<typeof OnEvent>[1]
+) => OnEvent(`stripe:${event}`, opts);
+
+/**
+ * Stripe webhook events sent in random order, and may be even sent more than once.
+ *
+ * A good way to avoid events sequence issue is fetch the latest object data regarding that event,
+ * and all following operations only depend on the latest state instead of the one in event data.
+ */
+@Injectable()
 export class StripeWebhook {
-  private readonly webhookKey: string;
-  private readonly logger = new Logger(StripeWebhook.name);
-
   constructor(
-    config: Config,
-    private readonly stripe: Stripe,
-    private readonly event: EventEmitter2
+    private readonly service: SubscriptionService,
+    private readonly stripe: Stripe
+  ) {}
+
+  @OnStripeEvent('invoice.created')
+  @OnStripeEvent('invoice.updated')
+  @OnStripeEvent('invoice.finalization_failed')
+  @OnStripeEvent('invoice.payment_failed')
+  @OnStripeEvent('invoice.paid')
+  async onInvoiceUpdated(
+    event:
+      | Stripe.InvoiceCreatedEvent
+      | Stripe.InvoiceUpdatedEvent
+      | Stripe.InvoiceFinalizationFailedEvent
+      | Stripe.InvoicePaymentFailedEvent
+      | Stripe.InvoicePaidEvent
   ) {
-    assert(config.plugins.payment.stripe);
-    this.webhookKey = config.plugins.payment.stripe.keys.webhookKey;
+    const invoice = await this.stripe.invoices.retrieve(event.data.object.id);
+    await this.service.saveStripeInvoice(invoice);
   }
 
-  @Public()
-  @Post('/webhook')
-  async handleWebhook(@Req() req: RawBodyRequest<Request>) {
-    // Check if webhook signing is configured.
+  @OnStripeEvent('customer.subscription.created')
+  @OnStripeEvent('customer.subscription.updated')
+  async onSubscriptionChanges(
+    event:
+      | Stripe.CustomerSubscriptionUpdatedEvent
+      | Stripe.CustomerSubscriptionCreatedEvent
+  ) {
+    const subscription = await this.stripe.subscriptions.retrieve(
+      event.data.object.id,
+      {
+        expand: ['customer'],
+      }
+    );
 
-    // Retrieve the event by verifying the signature using the raw body and secret.
-    const signature = req.headers['stripe-signature'];
-    try {
-      const event = this.stripe.webhooks.constructEvent(
-        req.rawBody ?? '',
-        signature ?? '',
-        this.webhookKey
-      );
+    await this.service.saveStripeSubscription(subscription);
+  }
 
-      this.logger.debug(
-        `[${event.id}] Stripe Webhook {${event.type}} received.`
-      );
-
-      // Stripe requires responseing webhook immediately and handle event asynchronously.
-      setImmediate(() => {
-        // handle duplicated events?
-        // see https://stripe.com/docs/webhooks#handle-duplicate-events
-        this.event
-          .emitAsync(
-            event.type,
-            event.data.object,
-            // here to let event listeners know what exactly the event is if a handler can handle multiple events
-            event.type
-          )
-          .catch(e => {
-            this.logger.error('Failed to handle Stripe Webhook event.', e);
-          });
-      });
-    } catch (err: any) {
-      throw new InternalServerError(err.message);
-    }
+  @OnStripeEvent('customer.subscription.deleted')
+  async onSubscriptionDeleted(event: Stripe.CustomerSubscriptionDeletedEvent) {
+    await this.service.deleteStripeSubscription(event.data.object);
   }
 }

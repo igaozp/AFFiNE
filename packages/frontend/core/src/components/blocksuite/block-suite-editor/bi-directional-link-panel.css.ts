@@ -1,5 +1,6 @@
 import { cssVar } from '@toeverything/theme';
-import { style } from '@vanilla-extract/css';
+import { cssVarV2 } from '@toeverything/theme/v2';
+import { globalStyle, style } from '@vanilla-extract/css';
 
 export const container = style({
   width: '100%',
@@ -49,7 +50,6 @@ export const title = style({
 });
 
 export const showButton = style({
-  width: '56px',
   height: '28px',
   borderRadius: '8px',
   border: '1px solid ' + cssVar('--affine-border-color'),
@@ -74,9 +74,68 @@ export const linksTitles = style({
 
 export const link = style({
   width: '100%',
-  height: '32px',
+  height: '30px',
   display: 'flex',
   alignItems: 'center',
   gap: '4px',
   whiteSpace: 'nowrap',
+  borderRadius: '4px',
+  ':hover': {
+    backgroundColor: cssVarV2('layer/background/hoverOverlay'),
+  },
+});
+
+globalStyle(`${link} .affine-reference-title`, {
+  borderBottom: 'none',
+});
+
+globalStyle(`${link} svg`, {
+  color: cssVarV2('icon/secondary'),
+});
+
+globalStyle(`${link}:hover svg`, {
+  color: cssVarV2('icon/primary'),
+});
+
+export const linkPreviewContainer = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+  marginTop: '4px',
+  marginBottom: '16px',
+});
+
+export const linkPreview = style({
+  cursor: 'default',
+  border: `0.5px solid ${cssVarV2('backlinks/blockBorder')}`,
+  borderRadius: '8px',
+  padding: '8px',
+  color: cssVarV2('text/primary'),
+  vars: {
+    [cssVar('fontFamily')]: cssVar('fontSansFamily'),
+  },
+  backgroundColor: cssVarV2('backlinks/blockBackgroundColor'),
+  ':hover': {
+    backgroundColor: cssVarV2('backlinks/blockHover'),
+  },
+});
+
+globalStyle(`${linkPreview} *`, {
+  cursor: 'default',
+});
+
+export const linkPreviewRenderer = style({
+  cursor: 'pointer',
+});
+
+export const collapsedIcon = style({
+  transition: 'all 0.2s ease-in-out',
+  color: cssVarV2('icon/primary'),
+  fontSize: 20,
+  selectors: {
+    '&[data-collapsed="true"]': {
+      transform: 'rotate(90deg)',
+      color: cssVarV2('icon/secondary'),
+    },
+  },
 });

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { Config, type EventPayload, OnEvent } from '../../fundamentals';
-import { UserService } from '../user/service';
+import { type EventPayload, OnEvent, Runtime } from '../../base';
+import { Models } from '../../models';
 import { FeatureService } from './service';
 import { FeatureType } from './types';
 
@@ -18,8 +18,8 @@ export class FeatureManagementService {
 
   constructor(
     private readonly feature: FeatureService,
-    private readonly user: UserService,
-    private readonly config: Config
+    private readonly models: Models,
+    private readonly runtime: Runtime
   ) {}
 
   // ======== Admin ========
@@ -69,7 +69,7 @@ export class FeatureManagementService {
   }
 
   async listEarlyAccess(type: EarlyAccessType = EarlyAccessType.App) {
-    return this.feature.listFeatureUsers(
+    return this.feature.listUsersByFeature(
       type === EarlyAccessType.App
         ? FeatureType.EarlyAccess
         : FeatureType.AIEarlyAccess
@@ -95,12 +95,12 @@ export class FeatureManagementService {
     email: string,
     type: EarlyAccessType = EarlyAccessType.App
   ) {
-    const earlyAccessControlEnabled = await this.config.runtime.fetch(
+    const earlyAccessControlEnabled = await this.runtime.fetch(
       'flags/earlyAccessControl'
     );
 
     if (earlyAccessControlEnabled && !this.isStaff(email)) {
-      const user = await this.user.findUserByEmail(email);
+      const user = await this.models.user.getUserByEmail(email);
       if (!user) {
         return false;
       }
@@ -132,7 +132,7 @@ export class FeatureManagementService {
 
   // ======== User Feature ========
   async getActivatedUserFeatures(userId: string): Promise<FeatureType[]> {
-    const features = await this.feature.getActivatedUserFeatures(userId);
+    const features = await this.feature.getUserActivatedFeatures(userId);
     return features.map(f => f.feature.name);
   }
 
@@ -165,7 +165,7 @@ export class FeatureManagementService {
   }
 
   async listFeatureWorkspaces(feature: FeatureType) {
-    return this.feature.listFeatureWorkspaces(feature);
+    return this.feature.listWorkspacesByFeature(feature);
   }
 
   @OnEvent('user.admin.created')

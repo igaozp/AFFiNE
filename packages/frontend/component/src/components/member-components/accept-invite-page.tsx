@@ -4,7 +4,6 @@ import { useI18n } from '@affine/i18n';
 
 import { Avatar } from '../../ui/avatar';
 import { Button } from '../../ui/button';
-import { FlexWrapper } from '../../ui/layout';
 import * as styles from './styles.css';
 export const AcceptInvitePage = ({
   onOpenWorkspace,
@@ -18,23 +17,29 @@ export const AcceptInvitePage = ({
     <AuthPageContainer
       title={t['Successfully joined!']()}
       subtitle={
-        <FlexWrapper alignItems="center">
-          <Avatar
-            url={inviteInfo.user.avatarUrl || ''}
-            name={inviteInfo.user.name}
-            size={20}
-          />
-          <span className={styles.inviteName}>{inviteInfo.user.name}</span>
-          {t['invited you to join']()}
-          <Avatar
-            url={`data:image/png;base64,${inviteInfo.workspace.avatar}`}
-            name={inviteInfo.workspace.name}
-            size={20}
-            style={{ marginLeft: 4 }}
-            colorfulFallback
-          />
-          <span className={styles.inviteName}>{inviteInfo.workspace.name}</span>
-        </FlexWrapper>
+        <div className={styles.content}>
+          <div className={styles.userWrapper}>
+            <Avatar
+              url={inviteInfo.user.avatarUrl || ''}
+              name={inviteInfo.user.name}
+              size={20}
+            />
+            <span className={styles.inviteName}>{inviteInfo.user.name}</span>
+          </div>
+          <div>{t['invited you to join']()}</div>
+          <div className={styles.userWrapper}>
+            <Avatar
+              url={`data:image/png;base64,${inviteInfo.workspace.avatar}`}
+              name={inviteInfo.workspace.name}
+              size={20}
+              style={{ marginLeft: 4 }}
+              colorfulFallback
+            />
+            <span className={styles.inviteName}>
+              {inviteInfo.workspace.name}
+            </span>
+          </div>
+        </div>
       }
     >
       <Button variant="primary" size="large" onClick={onOpenWorkspace}>

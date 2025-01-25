@@ -8,7 +8,7 @@ import {
   Resolver,
 } from '@nestjs/graphql';
 
-import { ActionForbidden } from '../../fundamentals';
+import { ActionForbidden } from '../../base';
 import { CurrentUser } from '../auth';
 import { Admin } from '../common';
 import { FeatureManagementService, FeatureType } from '../features';

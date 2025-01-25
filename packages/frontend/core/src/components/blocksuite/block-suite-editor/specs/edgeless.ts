@@ -1,28 +1,41 @@
-import { EdgelessSurfaceBlockSpec } from '@blocksuite/affine-block-surface';
-import type { ExtensionType } from '@blocksuite/block-std';
+import { createAIEdgelessRootBlockSpec } from '@affine/core/blocksuite/presets/ai';
+import { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { builtInTemplates as builtInEdgelessTemplates } from '@affine/templates/edgeless';
+import { builtInTemplates as builtInStickersTemplates } from '@affine/templates/stickers';
+import type { TemplateManager } from '@blocksuite/affine/blocks';
 import {
-  EdgelessNoteBlockSpec,
-  EdgelessSurfaceRefBlockSpec,
-  EdgelessTextBlockSpec,
-  FrameBlockSpec,
-} from '@blocksuite/blocks';
-import type { FrameworkProvider } from '@toeverything/infra';
+  EdgelessRootBlockSpec,
+  EdgelessTemplatePanel,
+  SpecProvider,
+} from '@blocksuite/affine/blocks';
+import type { ExtensionType } from '@blocksuite/affine/store';
+import { type FrameworkProvider } from '@toeverything/infra';
 
-import { AIBlockSpecs, DefaultBlockSpecs } from './common';
-import { createEdgelessRootBlockSpec } from './custom/root-block';
+import { enableAffineExtension, enableAIExtension } from './custom/root-block';
 
 export function createEdgelessModeSpecs(
-  framework: FrameworkProvider,
-  enableAI: boolean
+  framework: FrameworkProvider
 ): ExtensionType[] {
-  return [
-    ...(enableAI ? AIBlockSpecs : DefaultBlockSpecs),
-    EdgelessSurfaceBlockSpec,
-    EdgelessSurfaceRefBlockSpec,
-    FrameBlockSpec,
-    EdgelessTextBlockSpec,
-    EdgelessNoteBlockSpec,
-    // special
-    createEdgelessRootBlockSpec(framework, enableAI),
-  ].flat();
+  const featureFlagService = framework.get(FeatureFlagService);
+  const enableAI = featureFlagService.flags.enable_ai.value;
+  const edgelessSpec = SpecProvider.getInstance().getSpec('edgeless');
+  enableAffineExtension(framework, edgelessSpec);
+  if (enableAI) {
+    enableAIExtension(edgelessSpec);
+    edgelessSpec.replace(
+      EdgelessRootBlockSpec,
+      createAIEdgelessRootBlockSpec(framework)
+    );
+  }
+
+  return edgelessSpec.value;
+}
+
+export function effects() {
+  EdgelessTemplatePanel.templates.extend(
+    builtInStickersTemplates as TemplateManager
+  );
+  EdgelessTemplatePanel.templates.extend(
+    builtInEdgelessTemplates as TemplateManager
+  );
 }

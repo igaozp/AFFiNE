@@ -12,7 +12,7 @@ import {
 import { RuntimeConfig, RuntimeConfigType } from '@prisma/client';
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
-import { Config, URLHelper } from '../../fundamentals';
+import { Config, Runtime, URLHelper } from '../../base';
 import { Public } from '../auth';
 import { Admin } from '../common';
 import { FeatureType } from '../features';
@@ -76,6 +76,7 @@ export class ServerFlagsType implements ServerFlags {
 export class ServerConfigResolver {
   constructor(
     private readonly config: Config,
+    private readonly runtime: Runtime,
     private readonly url: URLHelper,
     private readonly server: ServerService
   ) {}
@@ -103,7 +104,7 @@ export class ServerConfigResolver {
     description: 'credentials requirement',
   })
   async credentialsRequirement() {
-    const config = await this.config.runtime.fetchAll({
+    const config = await this.runtime.fetchAll({
       'auth/password.max': true,
       'auth/password.min': true,
     });
@@ -120,7 +121,7 @@ export class ServerConfigResolver {
     description: 'server flags',
   })
   async flags(): Promise<ServerFlagsType> {
-    const records = await this.config.runtime.list('flags');
+    const records = await this.runtime.list('flags');
 
     return records.reduce((flags, record) => {
       flags[record.key as keyof ServerFlagsType] = record.value as any;
@@ -184,13 +185,13 @@ interface ServerDatabaseConfig {
 @Admin()
 @Resolver(() => ServerRuntimeConfigType)
 export class ServerRuntimeConfigResolver {
-  constructor(private readonly config: Config) {}
+  constructor(private readonly runtime: Runtime) {}
 
   @Query(() => [ServerRuntimeConfigType], {
     description: 'get all server runtime configurable settings',
   })
   serverRuntimeConfig(): Promise<ServerRuntimeConfigType[]> {
-    return this.config.runtime.list();
+    return this.runtime.list();
   }
 
   @Mutation(() => ServerRuntimeConfigType, {
@@ -200,7 +201,7 @@ export class ServerRuntimeConfigResolver {
     @Args('id') id: string,
     @Args({ type: () => GraphQLJSON, name: 'value' }) value: any
   ): Promise<ServerRuntimeConfigType> {
-    return await this.config.runtime.set(id as any, value);
+    return await this.runtime.set(id as any, value);
   }
 
   @Mutation(() => [ServerRuntimeConfigType], {
@@ -211,7 +212,7 @@ export class ServerRuntimeConfigResolver {
   ): Promise<ServerRuntimeConfigType[]> {
     const keys = Object.keys(updates);
     const results = await Promise.all(
-      keys.map(key => this.config.runtime.set(key as any, updates[key]))
+      keys.map(key => this.runtime.set(key as any, updates[key]))
     );
 
     return results;
@@ -261,7 +262,7 @@ export class ServerServiceConfigResolver {
   }
 
   database(): ServerDatabaseConfig {
-    const url = new URL(this.config.database.datasourceUrl);
+    const url = new URL(this.config.prisma.datasourceUrl);
 
     return {
       host: url.hostname,

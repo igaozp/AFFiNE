@@ -10,7 +10,7 @@ const preventDefault = () => {
 };
 
 export const MobileMenuItem = (props: MenuItemProps) => {
-  const { setOpen } = useContext(MobileMenuContext);
+  const { setOpen, subMenus, setSubMenus } = useContext(MobileMenuContext);
   const { className, children, otherProps } = useMenuItem(props);
   const { onSelect, onClick, divide, ...restProps } = otherProps;
 
@@ -21,10 +21,16 @@ export const MobileMenuItem = (props: MenuItemProps) => {
       if (preventDefaultFlag) {
         preventDefaultFlag = false;
       } else {
-        setOpen?.(false);
+        if (subMenus.length > 1) {
+          // assume the user can only click the last menu
+          // (mimic the back button)
+          setSubMenus(subMenus.slice(0, -1));
+        } else {
+          setOpen?.(false);
+        }
       }
     },
-    [onClick, onSelect, setOpen]
+    [onClick, onSelect, setOpen, setSubMenus, subMenus]
   );
 
   return (

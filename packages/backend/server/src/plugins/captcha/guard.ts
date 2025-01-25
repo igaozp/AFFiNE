@@ -8,7 +8,8 @@ import { Injectable } from '@nestjs/common';
 import {
   getRequestResponseFromContext,
   GuardProvider,
-} from '../../fundamentals';
+  Runtime,
+} from '../../base';
 import { CaptchaService } from './service';
 
 @Injectable()
@@ -18,11 +19,18 @@ export class CaptchaGuardProvider
 {
   name = 'captcha' as const;
 
-  constructor(private readonly captcha: CaptchaService) {
+  constructor(
+    private readonly captcha: CaptchaService,
+    private readonly runtime: Runtime
+  ) {
     super();
   }
 
   async canActivate(context: ExecutionContext) {
+    if (!(await this.runtime.fetch('plugins.captcha/enable'))) {
+      return true;
+    }
+
     const { req } = getRequestResponseFromContext(context);
 
     // require headers, old client send through query string

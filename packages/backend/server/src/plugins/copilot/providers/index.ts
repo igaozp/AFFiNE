@@ -2,7 +2,7 @@ import assert from 'node:assert';
 
 import { Injectable, Logger } from '@nestjs/common';
 
-import { AFFiNEConfig, Config } from '../../../fundamentals';
+import { AFFiNEConfig, Config } from '../../../base';
 import { CopilotStartupConfigurations } from '../config';
 import {
   CapabilityToCopilotProvider,
@@ -94,10 +94,8 @@ export function unregisterCopilotProvider(type: CopilotProviderType) {
 
 /// Asserts that the config is valid for any registered providers
 export function assertProvidersConfigs(config: AFFiNEConfig) {
-  return (
-    Array.from(ASSERT_CONFIG.values()).findIndex(assertConfig =>
-      assertConfig(config)
-    ) !== -1
+  return Array.from(ASSERT_CONFIG.values()).some(assertConfig =>
+    assertConfig(config)
   );
 }
 
@@ -126,9 +124,7 @@ export class CopilotProviderService {
     if (!this.cachedProviders.has(provider)) {
       this.cachedProviders.set(provider, this.create(provider));
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return this.cachedProviders.get(provider)!;
+    return this.cachedProviders.get(provider) as CopilotProvider;
   }
 
   async getProviderByCapability<C extends CopilotCapability>(
@@ -198,3 +194,4 @@ export class CopilotProviderService {
 
 export { FalProvider } from './fal';
 export { OpenAIProvider } from './openai';
+export { PerplexityProvider } from './perplexity';

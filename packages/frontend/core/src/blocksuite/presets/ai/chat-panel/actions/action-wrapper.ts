@@ -1,8 +1,9 @@
-import type { EditorHost } from '@blocksuite/block-std';
-import { WithDisposable } from '@blocksuite/block-std';
+import type { EditorHost } from '@blocksuite/affine/block-std';
+import { WithDisposable } from '@blocksuite/affine/global/utils';
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 
+import { createTextRenderer } from '../../../_common';
 import {
   ActionIcon,
   AIChangeToneIcon,
@@ -22,7 +23,6 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
 } from '../../_common/icons';
-import { createTextRenderer } from '../../messages/text';
 import type { ChatAction } from '../chat-context';
 import { renderImages } from '../components/images';
 import { HISTORY_IMAGE_ACTIONS } from '../const';
@@ -59,7 +59,6 @@ const icons: Record<string, TemplateResult<1>> = {
   'Convert to sticker': AIImageIcon,
 };
 
-@customElement('action-wrapper')
 export class ActionWrapper extends WithDisposable(LitElement) {
   static override styles = css`
     .action-name {

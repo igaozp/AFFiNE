@@ -1,6 +1,5 @@
 import { DebugLogger } from '@affine/debug';
-import type { GetEnableUrlPreviewQuery } from '@affine/graphql';
-import type { WorkspaceService } from '@toeverything/infra';
+import type { GetWorkspaceConfigQuery, InviteLink } from '@affine/graphql';
 import {
   backoffRetry,
   catchErrorInto,
@@ -8,22 +7,25 @@ import {
   Entity,
   fromPromise,
   LiveData,
-  mapInto,
   onComplete,
   onStart,
 } from '@toeverything/infra';
-import { exhaustMap } from 'rxjs';
+import { EMPTY, exhaustMap, mergeMap } from 'rxjs';
 
 import { isBackendError, isNetworkError } from '../../cloud';
+import type { WorkspaceService } from '../../workspace';
 import type { WorkspaceShareSettingStore } from '../stores/share-setting';
 
+type EnableAi = GetWorkspaceConfigQuery['workspace']['enableAi'];
 type EnableUrlPreview =
-  GetEnableUrlPreviewQuery['workspace']['enableUrlPreview'];
+  GetWorkspaceConfigQuery['workspace']['enableUrlPreview'];
 
 const logger = new DebugLogger('affine:workspace-permission');
 
 export class WorkspaceShareSetting extends Entity {
+  enableAi$ = new LiveData<EnableAi | null>(null);
   enableUrlPreview$ = new LiveData<EnableUrlPreview | null>(null);
+  inviteLink$ = new LiveData<InviteLink | null>(null);
   isLoading$ = new LiveData(false);
   error$ = new LiveData<any>(null);
 
@@ -38,7 +40,7 @@ export class WorkspaceShareSetting extends Entity {
   revalidate = effect(
     exhaustMap(() => {
       return fromPromise(signal =>
-        this.store.fetchWorkspaceEnableUrlPreview(
+        this.store.fetchWorkspaceConfig(
           this.workspaceService.workspace.id,
           signal
         )
@@ -51,7 +53,14 @@ export class WorkspaceShareSetting extends Entity {
           when: isBackendError,
           count: 3,
         }),
-        mapInto(this.enableUrlPreview$),
+        mergeMap(value => {
+          if (value) {
+            this.enableAi$.next(value.enableAi);
+            this.enableUrlPreview$.next(value.enableUrlPreview);
+            this.inviteLink$.next(value.inviteLink);
+          }
+          return EMPTY;
+        }),
         catchErrorInto(this.error$, error => {
           logger.error('Failed to fetch enableUrlPreview', error);
         }),
@@ -70,6 +79,14 @@ export class WorkspaceShareSetting extends Entity {
     await this.store.updateWorkspaceEnableUrlPreview(
       this.workspaceService.workspace.id,
       enableUrlPreview
+    );
+    await this.waitForRevalidation();
+  }
+
+  async setEnableAi(enableAi: EnableAi) {
+    await this.store.updateWorkspaceEnableAi(
+      this.workspaceService.workspace.id,
+      enableAi
     );
     await this.waitForRevalidation();
   }

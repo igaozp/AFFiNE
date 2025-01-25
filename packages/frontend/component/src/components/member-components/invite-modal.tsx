@@ -61,7 +61,7 @@ export const InviteModal = ({
       confirmButtonOptions={{
         loading: isMutating,
         variant: 'primary',
-        ['data-testid' as string]: 'confirm-enable-affine-cloud-button',
+        'data-testid': 'confirm-enable-affine-cloud-button',
       }}
       onConfirm={handleConfirm}
     >

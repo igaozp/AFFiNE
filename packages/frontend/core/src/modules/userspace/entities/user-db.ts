@@ -1,7 +1,7 @@
 import { createORMClient, Entity, YjsDBAdapter } from '@toeverything/infra';
 import { Doc as YDoc } from 'yjs';
 
-import { USER_DB_SCHEMA } from '../schema';
+import { USER_DB_SCHEMA, type UserDbSchema } from '../schema';
 import { UserDBEngine } from './user-db-engine';
 import { UserDBTable } from './user-db-table';
 
@@ -19,8 +19,8 @@ export class UserDB extends Entity<{
         const ydoc = new YDoc({
           guid,
         });
-        this.engine.docEngine.addDoc(ydoc, false);
-        this.engine.docEngine.setPriority(ydoc.guid, 50);
+        this.engine.client.docFrontend.connectDoc(ydoc);
+        this.engine.client.docFrontend.addPriority(ydoc.guid, 50);
         return ydoc;
       },
     })
@@ -42,5 +42,5 @@ export class UserDB extends Entity<{
 }
 
 export type UserDBWithTables = UserDB & {
-  [K in keyof USER_DB_SCHEMA]: UserDBTable<USER_DB_SCHEMA[K]>;
+  [K in keyof UserDbSchema]: UserDBTable<UserDbSchema[K]>;
 };

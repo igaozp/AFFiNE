@@ -7,7 +7,7 @@ import {
 } from '@nestjs/graphql';
 import type { User } from '@prisma/client';
 
-import type { Payload } from '../../fundamentals/event/def';
+import type { Payload } from '../../base/event/def';
 import { type CurrentUser } from '../auth/session';
 
 @ObjectType()
@@ -92,7 +92,7 @@ export class ManageUserInput {
   name?: string;
 }
 
-declare module '../../fundamentals/event/def' {
+declare module '../../base/event/def' {
   interface UserEvents {
     admin: {
       created: Payload<{ id: string }>;

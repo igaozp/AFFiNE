@@ -1,14 +1,8 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.node.json",
   "compilerOptions": {
-    "noEmit": false,
-    "outDir": "lib",
-    "composite": true,
-    "types": ["node"]
+    "outDir": "./dist"
   },
-  "include": ["index.d.ts", "__tests__/**/*.mts"],
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+  "include": ["index.d.ts"],
+  "references": []
 }

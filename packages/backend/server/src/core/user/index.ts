@@ -1,17 +1,16 @@
 import { Module } from '@nestjs/common';
 
+import { PermissionModule } from '../permission';
 import { StorageModule } from '../storage';
 import { UserAvatarController } from './controller';
+import { UserEventsListener } from './event';
 import { UserManagementResolver, UserResolver } from './resolver';
-import { UserService } from './service';
 
 @Module({
-  imports: [StorageModule],
-  providers: [UserResolver, UserService, UserManagementResolver],
+  imports: [StorageModule, PermissionModule],
+  providers: [UserResolver, UserManagementResolver, UserEventsListener],
   controllers: [UserAvatarController],
-  exports: [UserService],
 })
 export class UserModule {}
 
-export { UserService } from './service';
 export { UserType } from './types';

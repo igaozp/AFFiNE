@@ -1,22 +1,20 @@
 import './page-detail-editor.css';
 
-import type { AffineEditorContainer } from '@blocksuite/presets';
+import type { AffineEditorContainer } from '@blocksuite/affine/presets';
 import { useLiveData, useService } from '@toeverything/infra';
-import { cssVar } from '@toeverything/theme';
 import clsx from 'clsx';
-import type { CSSProperties } from 'react';
-import { useMemo } from 'react';
 
+import { DocService } from '../modules/doc';
 import { EditorService } from '../modules/editor';
+import { EditorSettingService } from '../modules/editor-setting';
 import {
-  EditorSettingService,
-  fontStyleOptions,
-} from '../modules/editor-settting';
-import { BlockSuiteEditor as Editor } from './blocksuite/block-suite-editor';
+  BlockSuiteEditor as Editor,
+  CustomEditorWrapper,
+} from './blocksuite/block-suite-editor';
 import * as styles from './page-detail-editor.css';
 
 declare global {
-  // eslint-disable-next-line no-var
+  // oxlint-disable-next-line no-var
   var currentEditor: AffineEditorContainer | undefined;
 }
 
@@ -31,6 +29,10 @@ export interface PageDetailEditorProps {
 export const PageDetailEditor = ({ onLoad }: PageDetailEditorProps) => {
   const editor = useService(EditorService).editor;
   const mode = useLiveData(editor.mode$);
+  const defaultOpenProperty = useLiveData(editor.defaultOpenProperty$);
+
+  const doc = useService(DocService).doc;
+  const pageWidth = useLiveData(doc.properties$.selector(p => p.pageWidth));
 
   const isSharedMode = editor.isSharedMode;
   const editorSetting = useService(EditorSettingService).editorSetting;
@@ -41,36 +43,23 @@ export const PageDetailEditor = ({ onLoad }: PageDetailEditorProps) => {
       fullWidthLayout: s.fullWidthLayout,
     }))
   );
-
-  const value = useMemo(() => {
-    const fontStyle = fontStyleOptions.find(
-      option => option.key === settings.fontFamily
-    );
-    if (!fontStyle) {
-      return cssVar('fontSansFamily');
-    }
-    const customFontFamily = settings.customFontFamily;
-
-    return customFontFamily && fontStyle.key === 'Custom'
-      ? `${customFontFamily}, ${fontStyle.value}`
-      : fontStyle.value;
-  }, [settings.customFontFamily, settings.fontFamily]);
+  const fullWidthLayout = pageWidth
+    ? pageWidth === 'fullWidth'
+    : settings.fullWidthLayout;
 
   return (
-    <Editor
-      className={clsx(styles.editor, {
-        'full-screen': !isSharedMode && settings.fullWidthLayout,
-        'is-public': isSharedMode,
-      })}
-      style={
-        {
-          '--affine-font-family': value,
-        } as CSSProperties
-      }
-      mode={mode}
-      page={editor.doc.blockSuiteDoc}
-      shared={isSharedMode}
-      onEditorReady={onLoad}
-    />
+    <CustomEditorWrapper>
+      <Editor
+        className={clsx(styles.editor, {
+          'full-screen': !isSharedMode && fullWidthLayout,
+          'is-public': isSharedMode,
+        })}
+        mode={mode}
+        defaultOpenProperty={defaultOpenProperty}
+        page={editor.doc.blockSuiteDoc}
+        shared={isSharedMode}
+        onEditorReady={onLoad}
+      />
+    </CustomEditorWrapper>
   );
 };

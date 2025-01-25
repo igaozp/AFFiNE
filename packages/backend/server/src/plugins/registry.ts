@@ -1,6 +1,6 @@
 import { get, merge, omit, set } from 'lodash-es';
 
-import { OptionalModule, OptionalModuleMetadata } from '../fundamentals/nestjs';
+import { OptionalModule, OptionalModuleMetadata } from '../base/nestjs';
 import { AvailablePlugins } from './config';
 
 export const REGISTERED_PLUGINS = new Map<AvailablePlugins, AFFiNEModule>();

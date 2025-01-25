@@ -1,12 +1,16 @@
 import { useI18n } from '@affine/i18n';
 import { SignOutIcon } from '@blocksuite/icons/rc';
+import type { JSX } from 'react';
 
 import { Avatar } from '../../ui/avatar';
 import { Button, IconButton } from '../../ui/button';
+import { ThemedImg } from '../../ui/themed-img';
 import { AffineOtherPageLayout } from '../affine-other-page-layout';
+import illustrationDark from '../affine-other-page-layout/assets/other-page.dark.png';
+import illustrationLight from '../affine-other-page-layout/assets/other-page.light.png';
 import type { User } from '../auth-components';
-import { NotFoundPattern } from './not-found-pattern';
 import {
+  illustration,
   largeButtonEffect,
   notFoundPageContainer,
   wrapper,
@@ -32,7 +36,12 @@ export const NoPermissionOrNotFound = ({
         {user ? (
           <>
             <div className={wrapper}>
-              <NotFoundPattern />
+              <ThemedImg
+                draggable={false}
+                className={illustration}
+                lightSrc={illustrationLight}
+                darkSrc={illustrationDark}
+              />
             </div>
             <p className={wrapper}>{t['404.hint']()}</p>
             <div className={wrapper}>
@@ -76,7 +85,12 @@ export const NotFoundPage = ({
     <AffineOtherPageLayout>
       <div className={notFoundPageContainer} data-testid="not-found">
         <div className={wrapper}>
-          <NotFoundPattern />
+          <ThemedImg
+            draggable={false}
+            className={illustration}
+            lightSrc={illustrationLight}
+            darkSrc={illustrationDark}
+          />
         </div>
         <p className={wrapper}>{t['404.hint']()}</p>
         <div className={wrapper}>

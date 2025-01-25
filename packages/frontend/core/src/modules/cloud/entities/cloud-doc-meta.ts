@@ -1,5 +1,4 @@
 import type { GetWorkspacePageMetaByIdQuery } from '@affine/graphql';
-import type { DocService, GlobalCache } from '@toeverything/infra';
 import {
   backoffRetry,
   catchErrorInto,
@@ -13,6 +12,8 @@ import {
 } from '@toeverything/infra';
 import { EMPTY, mergeMap } from 'rxjs';
 
+import type { DocService } from '../../doc';
+import type { GlobalCache } from '../../storage';
 import { isBackendError, isNetworkError } from '../error';
 import type { CloudDocMetaStore } from '../stores/cloud-doc-meta';
 

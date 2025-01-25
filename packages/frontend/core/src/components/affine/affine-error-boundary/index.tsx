@@ -8,6 +8,7 @@ export { type FallbackProps } from './error-basic/fallback-creator';
 
 export interface AffineErrorBoundaryProps extends PropsWithChildren {
   height?: number | string;
+  className?: string;
 }
 
 /**
@@ -16,9 +17,15 @@ export interface AffineErrorBoundaryProps extends PropsWithChildren {
 export const AffineErrorBoundary: FC<AffineErrorBoundaryProps> = props => {
   const fallbackRender: FallbackRender = useCallback(
     fallbackProps => {
-      return <AffineErrorFallback {...fallbackProps} height={props.height} />;
+      return (
+        <AffineErrorFallback
+          {...fallbackProps}
+          height={props.height}
+          className={props.className}
+        />
+      );
     },
-    [props.height]
+    [props.height, props.className]
   );
 
   const onError = useCallback((error: unknown, componentStack?: string) => {

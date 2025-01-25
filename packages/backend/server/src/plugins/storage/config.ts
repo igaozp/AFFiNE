@@ -1,9 +1,9 @@
 import { S3ClientConfig, S3ClientConfigType } from '@aws-sdk/client-s3';
 
-import { defineStartupConfig, ModuleConfig } from '../../fundamentals/config';
+import { defineStartupConfig, ModuleConfig } from '../../base/config';
 
 type WARNING = '__YOU_SHOULD_NOT_MANUALLY_CONFIGURATE_THIS_TYPE__';
-declare module '../../fundamentals/storage/config' {
+declare module '../../base/storage/config' {
   interface StorageProvidersConfig {
     // the type here is only existing for extends [StorageProviderType] with better type inference and checking.
     'cloudflare-r2'?: WARNING;

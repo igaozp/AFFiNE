@@ -19,8 +19,6 @@ env:
   AFFINE_ENV: dev
   COVERAGE: true
   MACOSX_DEPLOYMENT_TARGET: '10.13'
-  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/node_modules/.cache/ms-playwright
   DEPLOYMENT_TYPE: affine
 
 concurrency:
@@ -28,9 +26,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  optimize_ci:
+    name: Optimize CI
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check_skip.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Graphite CI Optimizer
+        uses: withgraphite/graphite-ci-action@main
+        id: check_skip
+        with:
+          graphite_token: ${{ secrets.GRAPHITE_CI_OPTIMIZER_TOKEN }}
+
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     permissions:
       actions: read
       contents: read
@@ -78,6 +91,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
 
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +105,7 @@ jobs:
           electron-install: false
           full-cache: true
       - name: Run i18n codegen
-        run: yarn i18n-codegen gen
+        run: yarn affine @affine/i18n build
       - name: Run ESLint
         run: yarn lint:eslint --max-warnings=0
       - name: Run Prettier
@@ -106,6 +121,8 @@ jobs:
   check-yarn-binary:
     name: Check yarn binary
     runs-on: ubuntu-latest
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     steps:
       - uses: actions/checkout@v4
       - name: Run check
@@ -113,9 +130,43 @@ jobs:
           yarn set version $(node -e "console.log(require('./package.json').packageManager.split('@')[1])")
           git diff --exit-code
 
+  e2e-legacy-blocksuite-test:
+    name: Legacy Blocksuite E2E Test
+    runs-on: ubuntu-latest
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          playwright-install: true
+          electron-install: false
+          full-cache: true
+
+      - name: Run playground build
+        run: yarn workspace @blocksuite/playground build
+
+      - name: Run playwright tests
+        run: yarn workspace @blocksuite/legacy-e2e test --forbid-only --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+
+      - name: Upload test results
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-e2e-legacy-bs-${{ matrix.shard }}
+          path: ./test-results
+          if-no-files-found: ignore
+
   e2e-test:
     name: E2E Test
     runs-on: ubuntu-latest
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     env:
       DISTRIBUTION: web
       IN_CI_TEST: true
@@ -133,7 +184,7 @@ jobs:
           full-cache: true
 
       - name: Run playwright tests
-        run: yarn workspace @affine-test/affine-local e2e --forbid-only --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        run: yarn affine @affine-test/affine-local e2e --forbid-only --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
       - name: Upload test results
         if: ${{ failure() }}
@@ -146,6 +197,8 @@ jobs:
   e2e-mobile-test:
     name: E2E Mobile Test
     runs-on: ubuntu-latest
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     env:
       DISTRIBUTION: mobile
       IN_CI_TEST: true
@@ -163,7 +216,7 @@ jobs:
           full-cache: true
 
       - name: Run playwright tests
-        run: yarn workspace @affine-test/affine-mobile e2e --forbid-only --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        run: yarn affine @affine-test/affine-mobile e2e --forbid-only --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
       - name: Upload test results
         if: ${{ failure() }}
@@ -173,44 +226,26 @@ jobs:
           path: ./test-results
           if-no-files-found: ignore
 
-  e2e-migration-test:
-    name: E2E Migration Test
-    runs-on: ubuntu-latest
-    env:
-      DISTRIBUTION: web
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-        with:
-          playwright-install: true
-          electron-install: false
-          full-cache: true
-
-      - name: Run playwright tests
-        run: yarn workspace @affine-test/affine-migration e2e --forbid-only
-
-      - name: Upload test results
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-e2e-migration
-          path: ./test-results
-          if-no-files-found: ignore
-
   unit-test:
     name: Unit Test
     runs-on: ubuntu-latest
     needs:
+      - optimize_ci
       - build-native
+    if: needs.optimize_ci.outputs.skip == 'false'
     env:
       DISTRIBUTION: web
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
           electron-install: true
+          playwright-install: true
           full-cache: true
 
       - name: Download affine.linux-x64-gnu.node
@@ -220,10 +255,10 @@ jobs:
           path: ./packages/frontend/native
 
       - name: Unit Test
-        run: yarn nx test:coverage @affine/monorepo
+        run: yarn test:coverage --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
       - name: Upload unit test coverage results
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./.coverage/store/lcov.info
@@ -234,6 +269,8 @@ jobs:
   build-native:
     name: Build AFFiNE native (${{ matrix.spec.target }})
     runs-on: ${{ matrix.spec.os }}
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     env:
       CARGO_PROFILE_RELEASE_DEBUG: '1'
     strategy:
@@ -242,11 +279,16 @@ jobs:
         spec:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
-          - { os: macos-14, target: x86_64-apple-darwin }
-          - { os: macos-14, target: aarch64-apple-darwin }
+          - { os: macos-latest, target: x86_64-apple-darwin }
+          - { os: macos-latest, target: aarch64-apple-darwin }
 
     steps:
       - uses: actions/checkout@v4
+      - uses: samypr100/setup-dev-drive@v3
+        if: ${{ matrix.spec.os == 'windows-latest' }}
+        with:
+          workspace-copy: true
+          drive-size: 8GB
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -254,6 +296,7 @@ jobs:
           electron-install: false
       - name: Setup filename
         id: filename
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         shell: bash
         run: |
           export PLATFORM_ARCH_ABI=$(node -e "console.log(require('@napi-rs/cli').parseTriple('${{ matrix.spec.target }}').platformArchABI)")
@@ -263,17 +306,18 @@ jobs:
         with:
           target: ${{ matrix.spec.target }}
           package: '@affine/native'
-          nx_token: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
       - name: Upload ${{ steps.filename.outputs.filename }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.filename.outputs.filename }}
-          path: ./packages/frontend/native/${{ steps.filename.outputs.filename }}
+          path: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}/packages/frontend/native/${{ steps.filename.outputs.filename }}
           if-no-files-found: error
 
   build-server-native:
     name: Build Server native
     runs-on: ubuntu-latest
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     env:
       CARGO_PROFILE_RELEASE_DEBUG: '1'
     steps:
@@ -288,7 +332,6 @@ jobs:
         with:
           target: 'x86_64-unknown-linux-gnu'
           package: '@affine/server-native'
-          nx_token: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
       - name: Upload server-native.node
         uses: actions/upload-artifact@v4
         with:
@@ -296,10 +339,11 @@ jobs:
           path: ./packages/backend/native/server-native.node
           if-no-files-found: error
 
-  build-web:
-    name: Build @affine/web
+  build-electron-renderer:
+    name: Build @affine/electron renderer
     runs-on: ubuntu-latest
-
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -307,13 +351,12 @@ jobs:
         with:
           electron-install: false
           full-cache: true
-      - name: Build Web
-        # always skip cache because its fast, and cache configuration is always changing
-        run: yarn nx build @affine/web --skip-nx-cache
+      - name: Build Electron renderer
+        run: yarn affine @affine/electron-renderer build
         env:
           DISTRIBUTION: desktop
       - name: zip web
-        run: tar -czf dist.tar.gz --directory=packages/frontend/electron/renderer/dist .
+        run: tar -czf dist.tar.gz --directory=packages/frontend/apps/electron-renderer/dist .
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
@@ -324,10 +367,15 @@ jobs:
   server-test:
     name: Server Test
     runs-on: ubuntu-latest
-    needs: build-server-native
+    needs:
+      - optimize_ci
+      - build-server-native
+    if: needs.optimize_ci.outputs.skip == 'false'
     env:
       NODE_ENV: test
       DISTRIBUTION: web
+      DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
+      REDIS_SERVER_HOST: localhost
     services:
       postgres:
         image: postgres
@@ -340,6 +388,10 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
       mailer:
         image: mailhog/mailhog
         ports:
@@ -360,31 +412,17 @@ jobs:
           name: server-native.node
           path: ./packages/backend/server
 
-      - name: Initialize database
-        run: |
-          psql -h localhost -U postgres -c "CREATE DATABASE affine;"
-          psql -h localhost -U postgres -c "CREATE USER affine WITH PASSWORD 'affine';"
-          psql -h localhost -U postgres -c "ALTER USER affine WITH SUPERUSER;"
-        env:
-          PGPASSWORD: affine
-
-      - name: Run init-db script
-        run: |
-          yarn workspace @affine/server exec prisma generate
-          yarn workspace @affine/server exec prisma db push
-          yarn workspace @affine/server data-migration run
-        env:
-          DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
+      - name: Prepare Server Test Environment
+        uses: ./.github/actions/server-test-env
 
       - name: Run server tests
-        run: yarn workspace @affine/server test:coverage
+        run: yarn affine @affine/server test:coverage --forbid-only
         env:
           CARGO_TARGET_DIR: '${{ github.workspace }}/target'
-          DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
           COPILOT_OPENAI_API_KEY: 'use_fake_openai_api_key'
 
       - name: Upload server test coverage results
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/backend/server/.coverage/lcov.info
@@ -392,30 +430,39 @@ jobs:
           name: affine
           fail_ci_if_error: false
 
-  server-e2e-test:
-    name: ${{ matrix.tests.name }}
+  rust-test:
+    name: Run native tests
     runs-on: ubuntu-latest
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
     env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: ./.github/actions/build-rust
+        with:
+          package: 'affine'
+          no-build: 'true'
+
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
+
+      - name: Run tests
+        run: cargo nextest run --release --no-fail-fast
+
+  copilot-api-test:
+    name: Server Copilot Api Test
+    runs-on: ubuntu-latest
+    needs:
+      - optimize_ci
+      - build-server-native
+    if: needs.optimize_ci.outputs.skip == 'false'
+    env:
+      NODE_ENV: test
       DISTRIBUTION: web
       DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
-      IN_CI_TEST: true
-    strategy:
-      fail-fast: false
-      matrix:
-        tests:
-          - name: 'Server E2E Test 1/3'
-            script: yarn workspace @affine-test/affine-cloud e2e --forbid-only --shard=1/3
-          - name: 'Server E2E Test 2/3'
-            script: yarn workspace @affine-test/affine-cloud e2e --forbid-only --shard=2/3
-          - name: 'Server E2E Test 3/3'
-            script: yarn workspace @affine-test/affine-cloud e2e --forbid-only --shard=3/3
-          - name: 'Server Desktop E2E Test'
-            script: |
-              yarn workspace @affine/electron build:dev
-              xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- yarn workspace @affine-test/affine-desktop-cloud e2e
-    needs:
-      - build-server-native
-      - build-native
+      REDIS_SERVER_HOST: localhost
     services:
       postgres:
         image: postgres
@@ -428,6 +475,200 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+      mailer:
+        image: mailhog/mailhog
+        ports:
+          - 1025:1025
+          - 8025:8025
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check blocksuite update
+        id: check-blocksuite-update
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if node ./scripts/detect-blocksuite-update.mjs "$BASE_REF"; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: dorny/paths-filter@v3
+        id: apifilter
+        with:
+          filters: |
+            changed:
+              - 'packages/backend/server/src/plugins/copilot/**'
+              - 'packages/backend/server/tests/copilot.*'
+
+      - name: Setup Node.js
+        if: ${{ steps.check-blocksuite-update.outputs.skip != 'true' || steps.apifilter.outputs.changed == 'true' }}
+        uses: ./.github/actions/setup-node
+        with:
+          electron-install: false
+          full-cache: true
+
+      - name: Download server-native.node
+        if: ${{ steps.check-blocksuite-update.outputs.skip != 'true' || steps.apifilter.outputs.changed == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: server-native.node
+          path: ./packages/backend/server
+
+      - name: Prepare Server Test Environment
+        if: ${{ steps.check-blocksuite-update.outputs.skip != 'true' || steps.apifilter.outputs.changed == 'true' }}
+        uses: ./.github/actions/server-test-env
+
+      - name: Run server tests
+        if: ${{ steps.check-blocksuite-update.outputs.skip != 'true' || steps.apifilter.outputs.changed == 'true' }}
+        run: yarn affine @affine/server test:copilot:coverage --forbid-only
+        env:
+          CARGO_TARGET_DIR: '${{ github.workspace }}/target'
+          COPILOT_OPENAI_API_KEY: ${{ secrets.COPILOT_OPENAI_API_KEY }}
+          COPILOT_FAL_API_KEY: ${{ secrets.COPILOT_FAL_API_KEY }}
+          COPILOT_PERPLEXITY_API_KEY: ${{ secrets.COPILOT_PERPLEXITY_API_KEY }}
+
+      - name: Upload server test coverage results
+        if: ${{ steps.check-blocksuite-update.outputs.skip != 'true' || steps.apifilter.outputs.changed == 'true' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/backend/server/.coverage/lcov.info
+          flags: server-test
+          name: affine
+          fail_ci_if_error: false
+
+  copilot-e2e-test:
+    name: Server Copilot E2E Test
+    runs-on: ubuntu-latest
+    env:
+      DISTRIBUTION: web
+      DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
+      IN_CI_TEST: true
+      REDIS_SERVER_HOST: localhost
+      DEPLOYMENT_TYPE: affine
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2, 3]
+        shardTotal: [3]
+    needs:
+      - build-server-native
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: affine
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check blocksuite update
+        id: check-blocksuite-update
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if node ./scripts/detect-blocksuite-update.mjs "$BASE_REF"; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: dorny/paths-filter@v3
+        id: e2efilter
+        with:
+          filters: |
+            changed:
+              - 'packages/frontend/core/src/blocksuite/presets/ai/**'
+              - 'packages/frontend/core/src/components/blocksuite/block-suite-editor/ai/**'
+              - 'tests/affine-cloud-copilot/**'
+
+      - name: Setup Node.js
+        if: ${{ steps.check-blocksuite-update.outputs.skip != 'true' || steps.e2efilter.outputs.changed == 'true' }}
+        uses: ./.github/actions/setup-node
+        with:
+          playwright-install: true
+          electron-install: false
+          hard-link-nm: false
+
+      - name: Download server-native.node
+        if: ${{ steps.check-blocksuite-update.outputs.skip != 'true' || steps.e2efilter.outputs.changed == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: server-native.node
+          path: ./packages/backend/server
+
+      - name: Run Copilot E2E Test ${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        if: ${{ steps.check-blocksuite-update.outputs.skip != 'true' || steps.e2efilter.outputs.changed == 'true' }}
+        uses: ./.github/actions/copilot-test
+        with:
+          script: yarn affine @affine-test/affine-cloud-copilot e2e --forbid-only --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          openai-key: ${{ secrets.COPILOT_OPENAI_API_KEY }}
+          fal-key: ${{ secrets.COPILOT_FAL_API_KEY }}
+          perplexity-key: ${{ secrets.COPILOT_PERPLEXITY_API_KEY }}
+
+  server-e2e-test:
+    name: ${{ matrix.tests.name }}
+    runs-on: ubuntu-latest
+    needs:
+      - optimize_ci
+      - build-server-native
+      - build-native
+    if: needs.optimize_ci.outputs.skip == 'false'
+    env:
+      DISTRIBUTION: web
+      DATABASE_URL: postgresql://affine:affine@localhost:5432/affine
+      REDIS_SERVER_HOST: localhost
+      IN_CI_TEST: true
+    strategy:
+      fail-fast: false
+      matrix:
+        tests:
+          - name: 'Server E2E Test 1/3'
+            script: yarn affine @affine-test/affine-cloud e2e --forbid-only --shard=1/3
+          - name: 'Server E2E Test 2/3'
+            script: yarn affine @affine-test/affine-cloud e2e --forbid-only --shard=2/3
+          - name: 'Server E2E Test 3/3'
+            script: yarn affine @affine-test/affine-cloud e2e --forbid-only --shard=3/3
+          - name: 'Server Desktop E2E Test'
+            script: |
+              yarn affine @affine/electron build:dev
+              # Workaround for Electron apps failing to initialize on Ubuntu 24.04 due to AppArmor restrictions
+              # Disables unprivileged user namespaces restriction to allow Electron apps to run
+              # Reference: https://github.com/electron/electron/issues/42510
+              sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+              xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- yarn affine @affine-test/affine-desktop-cloud e2e
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: affine
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
       mailer:
         image: mailhog/mailhog
         ports:
@@ -454,19 +695,8 @@ jobs:
           name: affine.linux-x64-gnu.node
           path: ./packages/frontend/native
 
-      - name: Initialize database
-        run: |
-          psql -h localhost -U postgres -c "CREATE DATABASE affine;"
-          psql -h localhost -U postgres -c "CREATE USER affine WITH PASSWORD 'affine';"
-          psql -h localhost -U postgres -c "ALTER USER affine WITH SUPERUSER;"
-        env:
-          PGPASSWORD: affine
-
-      - name: Run init-db script
-        run: |
-          yarn workspace @affine/server exec prisma generate
-          yarn workspace @affine/server exec prisma db push
-          yarn workspace @affine/server data-migration run
+      - name: Prepare Server Test Environment
+        uses: ./.github/actions/server-test-env
 
       - name: ${{ matrix.tests.name }}
         run: |
@@ -475,6 +705,7 @@ jobs:
           DEV_SERVER_URL: http://localhost:8080
           COPILOT_OPENAI_API_KEY: 1
           COPILOT_FAL_API_KEY: 1
+          COPILOT_PERPLEXITY_API_KEY: 1
 
       - name: Upload test results
         if: ${{ failure() }}
@@ -487,19 +718,24 @@ jobs:
   desktop-test:
     name: Desktop Test (${{ matrix.spec.os }}, ${{ matrix.spec.platform }}, ${{ matrix.spec.arch }}, ${{ matrix.spec.target }}, ${{ matrix.spec.test }})
     runs-on: ${{ matrix.spec.os }}
+    needs:
+      - optimize_ci
+      - build-electron-renderer
+      - build-native
+    if: needs.optimize_ci.outputs.skip == 'false'
     strategy:
       fail-fast: false
       matrix:
         spec:
           - {
-              os: macos-14,
+              os: macos-latest,
               platform: macos,
               arch: x64,
               target: x86_64-apple-darwin,
               test: false,
             }
           - {
-              os: macos-14,
+              os: macos-latest,
               platform: macos,
               arch: arm64,
               target: aarch64-apple-darwin,
@@ -519,16 +755,13 @@ jobs:
               target: x86_64-pc-windows-msvc,
               test: true,
             }
-    needs:
-      - build-web
-      - build-native
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         timeout-minutes: 10
         with:
-          extra-flags: workspaces focus @affine/electron @affine/monorepo @affine-test/affine-desktop
+          extra-flags: workspaces focus @affine/electron @affine/monorepo @affine-test/affine-desktop @affine/nbstore @toeverything/infra
           playwright-install: true
           hard-link-nm: false
           enableScripts: false
@@ -549,34 +782,46 @@ jobs:
       - name: Run unit tests
         if: ${{ matrix.spec.test }}
         shell: bash
-        run: yarn workspace @affine/electron vitest
+        run: yarn affine @affine/electron vitest
 
       - name: Download web artifact
         uses: ./.github/actions/download-web
         with:
-          path: packages/frontend/electron/resources/web-static
+          path: packages/frontend/apps/electron/resources/web-static
 
       - name: Build Desktop Layers
-        run: yarn workspace @affine/electron build
+        run: yarn affine @affine/electron build
 
       - name: Run desktop tests
         if: ${{ matrix.spec.os == 'ubuntu-latest' }}
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- yarn workspace @affine-test/affine-desktop e2e
+        run: |
+          # Workaround for Electron apps failing to initialize on Ubuntu 24.04 due to AppArmor restrictions
+          # Disables unprivileged user namespaces restriction to allow Electron apps to run
+          # Reference: https://github.com/electron/electron/issues/42510
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- yarn affine @affine-test/affine-desktop e2e
 
       - name: Run desktop tests
         if: ${{ matrix.spec.test && matrix.spec.os != 'ubuntu-latest' }}
-        run: yarn workspace @affine-test/affine-desktop e2e
+        run: yarn affine @affine-test/affine-desktop e2e
 
-      - name: Make bundle
+      - name: Make bundle (macOS)
         if: ${{ matrix.spec.target == 'aarch64-apple-darwin' }}
         env:
           SKIP_BUNDLE: true
           SKIP_WEB_BUILD: true
           HOIST_NODE_MODULES: 1
-        run: yarn workspace @affine/electron package --platform=darwin --arch=arm64
+        run: yarn affine @affine/electron package --platform=darwin --arch=arm64
 
-      - name: Make AppImage
-        run: yarn workspace @affine/electron make --platform=linux --arch=x64
+      - name: Make Bundle (Linux)
+        run: |
+          sudo add-apt-repository universe
+          sudo apt install -y libfuse2 elfutils flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak update
+          # some flatpak deps need git protocol.file.allow
+          git config --global protocol.file.allow always
+          yarn affine @affine/electron make --platform=linux --arch=x64
         if: ${{ matrix.spec.target == 'x86_64-unknown-linux-gnu' }}
         env:
           SKIP_WEB_BUILD: 1
@@ -585,7 +830,7 @@ jobs:
       - name: Output check
         if: ${{ matrix.spec.os == 'macos-14' && matrix.spec.arch == 'arm64' }}
         run: |
-          yarn workspace @affine/electron exec node --loader ts-node/esm/transpile-only ./scripts/macos-arm64-output-check.ts
+          yarn affine @affine/electron node ./scripts/macos-arm64-output-check.ts
 
       - name: Upload test results
         if: ${{ failure() }}
@@ -595,18 +840,36 @@ jobs:
           path: ./test-results
           if-no-files-found: ignore
 
+  test-build-mobile-app:
+    uses: ./.github/workflows/release-mobile.yml
+    needs: optimize_ci
+    if: needs.optimize_ci.outputs.skip == 'false'
+    with:
+      build-type: canary
+      build-target: development
+    secrets: inherit
+    permissions:
+      id-token: 'write'
+
   test-done:
     needs:
       - analyze
       - lint
       - check-yarn-binary
       - e2e-test
+      - e2e-legacy-blocksuite-test
       - e2e-mobile-test
-      - e2e-migration-test
       - unit-test
+      - build-native
+      - build-server-native
+      - build-electron-renderer
       - server-test
+      - rust-test
+      - copilot-api-test
+      - copilot-e2e-test
       - server-e2e-test
       - desktop-test
+      - test-build-mobile-app
     if: always()
     runs-on: ubuntu-latest
     name: 3, 2, 1 Launch

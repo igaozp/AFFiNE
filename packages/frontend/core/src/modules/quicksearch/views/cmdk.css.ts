@@ -5,10 +5,13 @@ export const root = style({});
 
 export const itemIcon = style({
   fontSize: 20,
+  width: '1em',
+  height: '1em',
   marginRight: 16,
   flexShrink: 0,
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'center',
   color: cssVar('iconSecondary'),
 });
 

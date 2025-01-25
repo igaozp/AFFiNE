@@ -1,24 +1,18 @@
-import { CategoryDivider } from '@affine/core/components/app-sidebar';
+import { CategoryDivider } from '@affine/core/modules/app-sidebar/views';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import {
+  type CSSProperties,
   type PropsWithChildren,
   type ReactNode,
   type RefObject,
   useCallback,
-  useContext,
 } from 'react';
 
 import { ExplorerService } from '../../services/explorer';
 import type { CollapsibleSectionName } from '../../types';
-import { ExplorerMobileContext } from '../mobile.context';
-import {
-  content,
-  header,
-  mobileContent,
-  root,
-} from './collapsible-section.css';
+import { content, header, root } from './collapsible-section.css';
 
 interface CollapsibleSectionProps extends PropsWithChildren {
   name: CollapsibleSectionName;
@@ -33,6 +27,7 @@ interface CollapsibleSectionProps extends PropsWithChildren {
   headerClassName?: string;
 
   contentClassName?: string;
+  contentStyle?: CSSProperties;
 }
 
 export const CollapsibleSection = ({
@@ -49,8 +44,8 @@ export const CollapsibleSection = ({
   headerClassName,
 
   contentClassName,
+  contentStyle,
 }: CollapsibleSectionProps) => {
-  const mobile = useContext(ExplorerMobileContext);
   const section = useService(ExplorerService).sections[name];
 
   const collapsed = useLiveData(section.collapsed$);
@@ -70,7 +65,6 @@ export const CollapsibleSection = ({
       data-testid={testId}
     >
       <CategoryDivider
-        mobile={mobile}
         data-testid={headerTestId}
         label={title}
         setCollapsed={setCollapsed}
@@ -82,7 +76,8 @@ export const CollapsibleSection = ({
       </CategoryDivider>
       <Collapsible.Content
         data-testid="collapsible-section-content"
-        className={clsx(mobile ? mobileContent : content, contentClassName)}
+        className={clsx(content, contentClassName)}
+        style={contentStyle}
       >
         {children}
       </Collapsible.Content>

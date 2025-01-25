@@ -8,7 +8,7 @@ import {
 } from '@nestjs/graphql';
 import { difference } from 'lodash-es';
 
-import { Config } from '../../fundamentals';
+import { Config } from '../../base';
 import { Admin } from '../common';
 import { UserType } from '../user/types';
 import { EarlyAccessType, FeatureManagementService } from './management';
@@ -37,7 +37,7 @@ export class AvailableUserFeatureConfig {
 
   async availableUserFeatures() {
     return this.config.isSelfhosted
-      ? [FeatureType.Admin]
+      ? [FeatureType.Admin, FeatureType.UnlimitedCopilot]
       : [FeatureType.EarlyAccess, FeatureType.AIEarlyAccess, FeatureType.Admin];
   }
 }

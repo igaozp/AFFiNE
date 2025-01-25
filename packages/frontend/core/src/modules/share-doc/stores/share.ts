@@ -6,10 +6,10 @@ import {
 } from '@affine/graphql';
 import { Store } from '@toeverything/infra';
 
-import type { GraphQLService } from '../../cloud';
+import type { WorkspaceServerService } from '../../cloud';
 
 export class ShareStore extends Store {
-  constructor(private readonly gqlService: GraphQLService) {
+  constructor(private readonly workspaceServerService: WorkspaceServerService) {
     super();
   }
 
@@ -18,7 +18,10 @@ export class ShareStore extends Store {
     docId: string,
     signal?: AbortSignal
   ) {
-    const data = await this.gqlService.gql({
+    if (!this.workspaceServerService.server) {
+      throw new Error('No Server');
+    }
+    const data = await this.workspaceServerService.server.gql({
       query: getWorkspacePublicPageByIdQuery,
       variables: {
         pageId: docId,
@@ -37,7 +40,10 @@ export class ShareStore extends Store {
     docMode?: PublicPageMode,
     signal?: AbortSignal
   ) {
-    await this.gqlService.gql({
+    if (!this.workspaceServerService.server) {
+      throw new Error('No Server');
+    }
+    await this.workspaceServerService.server.gql({
       query: publishPageMutation,
       variables: {
         pageId,
@@ -55,7 +61,10 @@ export class ShareStore extends Store {
     pageId: string,
     signal?: AbortSignal
   ) {
-    await this.gqlService.gql({
+    if (!this.workspaceServerService.server) {
+      throw new Error('No Server');
+    }
+    await this.workspaceServerService.server.gql({
       query: revokePublicPageMutation,
       variables: {
         pageId,

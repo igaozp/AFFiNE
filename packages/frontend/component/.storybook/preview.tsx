@@ -1,13 +1,16 @@
-import './polyfill';
-import '../src/theme/global.css';
-import './preview.css';
+import { getOrCreateI18n, I18nextProvider } from '@affine/i18n';
 import { ThemeProvider } from 'next-themes';
 import type { ComponentType } from 'react';
+import '../src/theme';
+import './polyfill';
+import './preview.css';
 
 import type { Preview } from '@storybook/react';
 import React, { useEffect } from 'react';
 import { ConfirmModalProvider } from '../src/ui/modal/confirm-modal';
+
 import { setupGlobal } from '@affine/env/global';
+import { useTheme as useNextTheme } from 'next-themes';
 
 setupGlobal();
 
@@ -34,22 +37,29 @@ export const globalTypes = {
   },
 };
 
-const useTheme = context => {
+const ThemeToggle = ({ context }) => {
   const { theme } = context.globals;
+  const { setTheme } = useNextTheme();
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    setTheme(theme);
   }, [theme]);
+
+  return null;
 };
+
+const i18n = getOrCreateI18n();
 
 export const decorators = [
   (Story: ComponentType, context) => {
-    useTheme(context);
     return (
       <ThemeProvider themes={['dark', 'light']} enableSystem={true}>
-        <ConfirmModalProvider>
-          <Story {...context} />
-        </ConfirmModalProvider>
+        <ThemeToggle context={context} />
+        <I18nextProvider i18n={i18n}>
+          <ConfirmModalProvider>
+            <Story {...context} />
+          </ConfirmModalProvider>
+        </I18nextProvider>
       </ThemeProvider>
     );
   },

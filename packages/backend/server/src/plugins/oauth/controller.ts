@@ -10,15 +10,15 @@ import {
 import { ConnectedAccount, PrismaClient } from '@prisma/client';
 import type { Request, Response } from 'express';
 
-import { AuthService, Public } from '../../core/auth';
-import { UserService } from '../../core/user';
 import {
   InvalidOauthCallbackState,
   MissingOauthQueryParameter,
   OauthAccountAlreadyConnected,
   OauthStateExpired,
   UnknownOauthProvider,
-} from '../../fundamentals';
+} from '../../base';
+import { AuthService, Public } from '../../core/auth';
+import { Models } from '../../models';
 import { OAuthProviderName } from './config';
 import { OAuthAccount, Tokens } from './providers/def';
 import { OAuthProviderFactory } from './register';
@@ -29,7 +29,7 @@ export class OAuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly oauth: OAuthService,
-    private readonly user: UserService,
+    private readonly models: Models,
     private readonly providerFactory: OAuthProviderFactory,
     private readonly db: PrismaClient
   ) {}
@@ -111,7 +111,6 @@ export class OAuthController {
     await this.auth.setCookies(req, res, user.id);
     res.send({
       id: user.id,
-      /* @deprecated */
       redirectUri: state.redirectUri,
     });
   }
@@ -138,9 +137,7 @@ export class OAuthController {
       return connectedUser.user;
     }
 
-    const user = await this.user.fulfillUser(externalAccount.email, {
-      emailVerifiedAt: new Date(),
-      registered: true,
+    const user = await this.models.user.fulfill(externalAccount.email, {
       avatarUrl: externalAccount.avatarUrl,
     });
 

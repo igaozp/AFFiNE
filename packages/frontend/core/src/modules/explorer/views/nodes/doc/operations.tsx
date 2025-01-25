@@ -6,27 +6,25 @@ import {
   useConfirmModal,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/components/blocksuite/block-suite-page-list/utils';
+import { useBlockSuiteMetaHelper } from '@affine/core/components/hooks/affine/use-block-suite-meta-helper';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
-import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
-import { track } from '@affine/core/mixpanel';
-import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/properties';
+import { DocsService } from '@affine/core/modules/doc';
+import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
 import { WorkbenchService } from '@affine/core/modules/workbench';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import {
   DeleteIcon,
+  DuplicateIcon,
   InformationIcon,
   LinkedPageIcon,
   OpenInNewIcon,
   PlusIcon,
   SplitViewIcon,
 } from '@blocksuite/icons/rc';
-import {
-  DocsService,
-  FeatureFlagService,
-  useLiveData,
-  useServices,
-  WorkspaceService,
-} from '@toeverything/infra';
+import { useLiveData, useServices } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
 import type { NodeOperation } from '../../tree/types';
@@ -44,17 +42,12 @@ export const useExplorerDocNodeOperations = (
     workspaceService,
     docsService,
     compatibleFavoriteItemsAdapter,
-    featureFlagService,
   } = useServices({
     DocsService,
     WorkbenchService,
     WorkspaceService,
     CompatibleFavoriteItemsAdapter,
-    FeatureFlagService,
   });
-  const enableMultiView = useLiveData(
-    featureFlagService.flags.enable_multi_view.$
-  );
   const { openConfirmModal } = useConfirmModal();
 
   const docRecord = useLiveData(docsService.list.doc$(docId));
@@ -69,6 +62,11 @@ export const useExplorerDocNodeOperations = (
     }, [docId, compatibleFavoriteItemsAdapter])
   );
 
+  const { duplicate } = useBlockSuiteMetaHelper();
+  const handleDuplicate = useCallback(() => {
+    duplicate(docId, true);
+    track.$.navigationPanel.docs.createDoc();
+  }, [docId, duplicate]);
   const handleOpenInfoModal = useCallback(() => {
     track.$.docInfoPanel.$.open();
     options.openInfoModal();
@@ -122,9 +120,8 @@ export const useExplorerDocNodeOperations = (
     await docsService.addLinkedDoc(docId, newDoc.id);
     track.$.navigationPanel.docs.createDoc({ control: 'linkDoc' });
     track.$.navigationPanel.docs.linkDoc({ control: 'createDoc' });
-    workbenchService.workbench.openDoc(newDoc.id);
     options.openNodeCollapsed();
-  }, [createPage, docsService, docId, workbenchService.workbench, options]);
+  }, [createPage, docsService, docId, options]);
 
   const handleToggleFavoriteDoc = useCallback(() => {
     compatibleFavoriteItemsAdapter.toggle(docId, 'doc');
@@ -147,21 +144,17 @@ export const useExplorerDocNodeOperations = (
           />
         ),
       },
-      ...(runtimeConfig.enableInfoModal
-        ? [
-            {
-              index: 50,
-              view: (
-                <MenuItem
-                  prefixIcon={<InformationIcon />}
-                  onClick={handleOpenInfoModal}
-                >
-                  {t['com.affine.page-properties.page-info.view']()}
-                </MenuItem>
-              ),
-            },
-          ]
-        : []),
+      {
+        index: 50,
+        view: (
+          <MenuItem
+            prefixIcon={<InformationIcon />}
+            onClick={handleOpenInfoModal}
+          >
+            {t['com.affine.page-properties.page-info.view']()}
+          </MenuItem>
+        ),
+      },
       {
         index: 99,
         view: (
@@ -176,12 +169,20 @@ export const useExplorerDocNodeOperations = (
       {
         index: 99,
         view: (
+          <MenuItem prefixIcon={<DuplicateIcon />} onClick={handleDuplicate}>
+            {t['com.affine.header.option.duplicate']()}
+          </MenuItem>
+        ),
+      },
+      {
+        index: 99,
+        view: (
           <MenuItem prefixIcon={<OpenInNewIcon />} onClick={handleOpenInNewTab}>
             {t['com.affine.workbench.tab.page-menu-open']()}
           </MenuItem>
         ),
       },
-      ...(enableMultiView && environment.isElectron
+      ...(BUILD_CONFIG.isElectron
         ? [
             {
               index: 100,
@@ -227,9 +228,9 @@ export const useExplorerDocNodeOperations = (
       },
     ],
     [
-      enableMultiView,
       favorite,
       handleAddLinkedPage,
+      handleDuplicate,
       handleMoveToTrash,
       handleOpenInNewTab,
       handleOpenInSplitView,

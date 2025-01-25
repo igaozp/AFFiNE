@@ -1,6 +1,5 @@
 import { Component } from './component';
 
-// eslint-disable-next-line @typescript-eslint/ban-types
 export class Scope<Props = {}> extends Component<Props> {
   readonly __injectable = true;
 

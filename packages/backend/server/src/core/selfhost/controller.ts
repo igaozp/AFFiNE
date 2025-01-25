@@ -7,10 +7,12 @@ import {
   InternalServerError,
   Mutex,
   PasswordRequired,
-} from '../../fundamentals';
+  Runtime,
+} from '../../base';
+import { Models } from '../../models';
 import { AuthService, Public } from '../auth';
 import { ServerService } from '../config';
-import { UserService } from '../user/service';
+import { validators } from '../utils/validators';
 
 interface CreateUserInput {
   email: string;
@@ -20,11 +22,12 @@ interface CreateUserInput {
 @Controller('/api/setup')
 export class CustomSetupController {
   constructor(
-    private readonly user: UserService,
+    private readonly models: Models,
     private readonly auth: AuthService,
     private readonly event: EventEmitter,
     private readonly mutex: Mutex,
-    private readonly server: ServerService
+    private readonly server: ServerService,
+    private readonly runtime: Runtime
   ) {}
 
   @Public()
@@ -34,21 +37,33 @@ export class CustomSetupController {
     @Res() res: Response,
     @Body() input: CreateUserInput
   ) {
+    if (await this.server.initialized()) {
+      throw new ActionForbidden('First user already created');
+    }
+
+    validators.assertValidEmail(input.email);
+
     if (!input.password) {
       throw new PasswordRequired();
     }
 
-    await using lock = await this.mutex.lock('createFirstAdmin');
+    const config = await this.runtime.fetchAll({
+      'auth/password.max': true,
+      'auth/password.min': true,
+    });
+
+    validators.assertValidPassword(input.password, {
+      max: config['auth/password.max'],
+      min: config['auth/password.min'],
+    });
+
+    await using lock = await this.mutex.acquire('createFirstAdmin');
 
     if (!lock) {
       throw new InternalServerError();
     }
 
-    if (await this.server.initialized()) {
-      throw new ActionForbidden('First user already created');
-    }
-
-    const user = await this.user.createUser({
+    const user = await this.models.user.create({
       email: input.email,
       password: input.password,
       registered: true,
@@ -59,7 +74,7 @@ export class CustomSetupController {
       await this.auth.setCookies(req, res, user.id);
       res.send({ id: user.id, email: user.email, name: user.name });
     } catch (e) {
-      await this.user.deleteUser(user.id);
+      await this.models.user.delete(user.id);
       throw e;
     }
   }

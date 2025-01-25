@@ -51,9 +51,9 @@ export const CollapsibleItem = ({
           </AccordionTrigger>
         </NavLink>
         <AccordionContent className=" flex flex-col gap-2 py-1">
-          {items.map((item, index) => (
+          {items.map(item => (
             <NavLink
-              key={index}
+              key={item}
               to={`/admin/settings/${title}#${item}`}
               className={({ isActive }) => {
                 return isActive && activeSubTab === item

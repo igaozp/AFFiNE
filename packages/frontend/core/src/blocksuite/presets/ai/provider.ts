@@ -1,6 +1,12 @@
-import type { EditorHost } from '@blocksuite/block-std';
-import { PaymentRequiredError, UnauthorizedError } from '@blocksuite/blocks';
-import { Slot } from '@blocksuite/store';
+import type { EditorHost } from '@blocksuite/affine/block-std';
+import {
+  PaymentRequiredError,
+  UnauthorizedError,
+} from '@blocksuite/affine/blocks';
+import { Slot } from '@blocksuite/affine/global/utils';
+import { captureException } from '@sentry/react';
+
+import type { ChatContextValue } from './chat-panel/chat-context';
 
 export interface AIUserInfo {
   id: string;
@@ -14,6 +20,12 @@ export interface AIChatParams {
   mode?: 'page' | 'edgeless';
   // Auto select and append selection to input via `Continue with AI` action.
   autoSelect?: boolean;
+}
+
+export interface AISendParams {
+  host: EditorHost;
+  input: string;
+  context?: Partial<ChatContextValue | null>;
 }
 
 export type ActionEventType =
@@ -100,14 +112,13 @@ export class AIProvider {
     // use case: when user selects "continue in chat" in an ask ai result panel
     // do we need to pass the context to the chat panel?
     requestOpenWithChat: new Slot<AIChatParams>(),
+    requestSendWithChat: new Slot<AISendParams>(),
     requestInsertTemplate: new Slot<{
       template: string;
       mode: 'page' | 'edgeless';
     }>(),
     requestLogin: new Slot<{ host: EditorHost }>(),
     requestUpgradePlan: new Slot<{ host: EditorHost }>(),
-    // when an action is requested to run in edgeless mode (show a toast in affine)
-    requestRunInEdgeless: new Slot<{ host: EditorHost }>(),
     // stream of AI actions triggered by users
     actions: new Slot<{
       action: keyof BlockSuitePresets.AIActions;
@@ -116,11 +127,6 @@ export class AIProvider {
     }>(),
     // downstream can emit this slot to notify ai presets that user info has been updated
     userInfo: new Slot<AIUserInfo | null>(),
-    // add more if needed
-    toggleChatCards: new Slot<{
-      visible: boolean;
-      ok?: boolean;
-    }>(),
   };
 
   // track the history of triggered actions (in memory only)
@@ -138,10 +144,6 @@ export class AIProvider {
       ...options: Parameters<BlockSuitePresets.AIActions[T]>
     ) => ReturnType<BlockSuitePresets.AIActions[T]>
   ): void {
-    if (this.actions[id]) {
-      console.warn(`AI action ${id} is already provided`);
-    }
-
     // @ts-expect-error TODO: maybe fix this
     this.actions[id] = (
       ...args: Parameters<BlockSuitePresets.AIActions[T]>
@@ -168,7 +170,9 @@ export class AIProvider {
       if (isTextStream(result)) {
         return {
           [Symbol.asyncIterator]: async function* () {
+            let user = null;
             try {
+              user = await AIProvider.userInfo;
               yield* result;
               slots.actions.emit({
                 action: id,
@@ -199,14 +203,23 @@ export class AIProvider {
                   options,
                   event: 'aborted:server-error',
                 });
+                captureException(err, {
+                  user: { id: user?.id },
+                  extra: {
+                    action: id,
+                    session: AIProvider.LAST_ACTION_SESSIONID,
+                  },
+                });
               }
               throw err;
             }
           },
         };
       } else {
+        let user: any = null;
         return result
-          .then(result => {
+          .then(async result => {
+            user = await AIProvider.userInfo;
             slots.actions.emit({
               action: id,
               options,
@@ -225,6 +238,14 @@ export class AIProvider {
                 action: id,
                 options,
                 event: 'aborted:paywall',
+              });
+            } else {
+              captureException(err, {
+                user: { id: user?.id },
+                extra: {
+                  action: id,
+                  session: AIProvider.LAST_ACTION_SESSIONID,
+                },
               });
             }
             throw err;
@@ -283,7 +304,6 @@ export class AIProvider {
         options: BlockSuitePresets.AIForkChatSessionOptions
       ) => string | Promise<string>;
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       AIProvider.instance.provideAction(id as any, action as any);
     }
   }

@@ -4,41 +4,23 @@ import clsx from 'clsx';
 import type { HTMLAttributes, MouseEventHandler } from 'react';
 import { forwardRef, memo, useCallback, useMemo, useState } from 'react';
 
+import type { View } from '../../entities/view';
 import * as styles from './indicator.css';
 
-export interface SplitViewMenuProps extends HTMLAttributes<HTMLDivElement> {
+export interface SplitViewDragHandleProps
+  extends HTMLAttributes<HTMLDivElement> {
   active?: boolean;
+  dragging?: boolean;
   open?: boolean;
   onOpenMenu?: () => void;
-  setPressed: (v: boolean) => void;
 }
 
-export const SplitViewMenuIndicator = memo(
-  forwardRef<HTMLDivElement, SplitViewMenuProps>(
-    function SplitViewMenuIndicator(
-      {
-        className,
-        active,
-        open,
-        setPressed,
-        onOpenMenu,
-        ...attrs
-      }: SplitViewMenuProps,
+export const SplitViewDragHandle = memo(
+  forwardRef<HTMLDivElement, SplitViewDragHandleProps>(
+    function SplitViewDragHandle(
+      { className, active, open, onOpenMenu, dragging, ...attrs },
       ref
     ) {
-      // dnd's `isDragging` changes after mouseDown and mouseMoved
-      const onMouseDown = useCallback(() => {
-        const t = setTimeout(() => setPressed(true), 100);
-        window.addEventListener(
-          'mouseup',
-          () => {
-            clearTimeout(t);
-            setPressed(false);
-          },
-          { once: true }
-        );
-      }, [setPressed]);
-
       const onClick: MouseEventHandler = useCallback(() => {
         !open && onOpenMenu?.();
       }, [onOpenMenu, open]);
@@ -47,13 +29,16 @@ export const SplitViewMenuIndicator = memo(
         <div
           ref={ref}
           data-active={active}
+          data-dragging={dragging}
           data-testid="split-view-indicator"
           className={clsx(className, styles.indicator)}
           onClick={onClick}
-          onMouseDown={onMouseDown}
           {...attrs}
         >
-          <div className={styles.indicatorInner} />
+          <div className={styles.indicatorGradient} />
+          <div data-idx={0} className={styles.indicatorDot} />
+          <div data-idx={1} className={styles.indicatorDot} />
+          <div data-idx={2} className={styles.indicatorDot} />
         </div>
       );
     }
@@ -61,64 +46,69 @@ export const SplitViewMenuIndicator = memo(
 );
 
 interface SplitViewIndicatorProps extends HTMLAttributes<HTMLDivElement> {
-  isDragging?: boolean;
+  view: View;
   isActive?: boolean;
+  isDragging?: boolean;
   menuItems?: React.ReactNode;
-  // import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities' is not allowed
-  listeners?: any;
   setPressed?: (pressed: boolean) => void;
+  dragHandleRef?: React.RefObject<HTMLDivElement>;
 }
-export const SplitViewIndicator = ({
-  isDragging,
-  isActive,
-  menuItems,
-  listeners,
-  setPressed,
-}: SplitViewIndicatorProps) => {
-  const active = isActive || isDragging;
-  const [menuOpen, setMenuOpen] = useState(false);
+export const SplitViewIndicator = memo(
+  forwardRef<HTMLDivElement, SplitViewIndicatorProps>(
+    function SplitViewIndicator(
+      { isActive, menuItems, isDragging, dragHandleRef },
+      ref
+    ) {
+      const [menuOpen, setMenuOpen] = useState(false);
 
-  // prevent menu from opening when dragging
-  const setOpenMenuManually = useCallback((open: boolean) => {
-    if (open) return;
-    setMenuOpen(open);
-  }, []);
-  const openMenu = useCallback(() => {
-    setMenuOpen(true);
-  }, []);
+      // prevent menu from opening when dragging
+      const setOpenMenuManually = useCallback((open: boolean) => {
+        if (open) return;
+        setMenuOpen(open);
+      }, []);
 
-  const menuRootOptions = useMemo(
-    () =>
-      ({
-        open: menuOpen,
-        onOpenChange: setOpenMenuManually,
-      }) satisfies MenuProps['rootOptions'],
-    [menuOpen, setOpenMenuManually]
-  );
-  const menuContentOptions = useMemo(
-    () =>
-      ({
-        align: 'center',
-      }) satisfies MenuProps['contentOptions'],
-    []
-  );
+      const openMenu = useCallback(() => {
+        setMenuOpen(true);
+      }, []);
 
-  return (
-    <div data-is-dragging={isDragging} className={styles.indicatorWrapper}>
-      <Menu
-        contentOptions={menuContentOptions}
-        items={menuItems}
-        rootOptions={menuRootOptions}
-      >
-        <div className={styles.menuTrigger} />
-      </Menu>
-      <SplitViewMenuIndicator
-        open={menuOpen}
-        onOpenMenu={openMenu}
-        active={active}
-        setPressed={setPressed}
-        {...listeners}
-      />
-    </div>
-  );
-};
+      const menuRootOptions = useMemo(
+        () =>
+          ({
+            open: menuOpen,
+            onOpenChange: setOpenMenuManually,
+          }) satisfies MenuProps['rootOptions'],
+        [menuOpen, setOpenMenuManually]
+      );
+      const menuContentOptions = useMemo(
+        () =>
+          ({
+            align: 'center',
+          }) satisfies MenuProps['contentOptions'],
+        []
+      );
+
+      return (
+        <div
+          ref={ref}
+          data-is-dragging={isDragging}
+          className={styles.indicatorWrapper}
+        >
+          <Menu
+            contentOptions={menuContentOptions}
+            items={menuItems}
+            rootOptions={menuRootOptions}
+          >
+            <div className={styles.menuTrigger} />
+          </Menu>
+          <SplitViewDragHandle
+            ref={dragHandleRef}
+            open={menuOpen}
+            onOpenMenu={openMenu}
+            active={isActive}
+            dragging={isDragging}
+          />
+        </div>
+      );
+    }
+  )
+);

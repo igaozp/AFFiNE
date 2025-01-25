@@ -9,7 +9,6 @@ import { waitForEditorLoad } from '@affine-test/kit/utils/page-logic';
 import { clickUserInfoCard } from '@affine-test/kit/utils/setting';
 import {
   clickSideBarAllPageButton,
-  clickSideBarCurrentWorkspaceBanner,
   clickSideBarSettingButton,
   clickSideBarUseAvatar,
 } from '@affine-test/kit/utils/sidebar';
@@ -19,8 +18,7 @@ import { expect } from '@playwright/test';
 test('can open login modal in workspace list', async ({ page }) => {
   await openHomePage(page);
   await waitForEditorLoad(page);
-  await clickSideBarCurrentWorkspaceBanner(page);
-  await page.getByTestId('cloud-signin-button').click({
+  await page.getByTestId('sidebar-user-avatar').click({
     delay: 200,
   });
   await expect(page.getByTestId('auth-modal')).toBeVisible();
@@ -36,7 +34,7 @@ test.describe('login first', () => {
 
   test.beforeEach(async ({ page }) => {
     user = await createRandomUser();
-    await loginUser(page, user.email);
+    await loginUser(page, user);
   });
 
   test('exit successfully and re-login', async ({ page }) => {

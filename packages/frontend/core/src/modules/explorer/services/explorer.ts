@@ -11,6 +11,7 @@ const allSectionName: Array<CollapsibleSectionName> = [
   'tags',
   'favoritesOld',
   'migrationFavorites',
+  'others',
 ];
 
 export class ExplorerService extends Service {

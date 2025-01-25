@@ -1,17 +1,21 @@
-import { DocEngine, Entity } from '@toeverything/infra';
+import { IndexedDBDocStorage } from '@affine/nbstore/idb';
+import { SqliteDocStorage } from '@affine/nbstore/sqlite';
+import type { WorkerClient } from '@affine/nbstore/worker/client';
+import { Entity } from '@toeverything/infra';
 
-import type { WebSocketService } from '../../cloud';
-import { UserDBDocServer } from '../impls/user-db-doc-server';
-import type { UserspaceStorageProvider } from '../provider/storage';
+import type { ServerService } from '../../cloud';
+import type { NbstoreService } from '../../storage';
 
 export class UserDBEngine extends Entity<{
   userId: string;
 }> {
   private readonly userId = this.props.userId;
-  readonly docEngine = new DocEngine(
-    this.userspaceStorageProvider.getDocStorage('affine-cloud:' + this.userId),
-    new UserDBDocServer(this.userId, this.websocketService)
-  );
+  readonly client: WorkerClient;
+
+  DocStorageType =
+    BUILD_CONFIG.isElectron || BUILD_CONFIG.isIOS
+      ? SqliteDocStorage
+      : IndexedDBDocStorage;
 
   canGracefulStop() {
     // TODO(@eyhn): Implement this
@@ -19,14 +23,40 @@ export class UserDBEngine extends Entity<{
   }
 
   constructor(
-    private readonly userspaceStorageProvider: UserspaceStorageProvider,
-    private readonly websocketService: WebSocketService
+    private readonly nbstoreService: NbstoreService,
+    serverService: ServerService
   ) {
     super();
-    this.docEngine.start();
-  }
 
-  override dispose() {
-    this.docEngine.stop();
+    const { store, dispose } = this.nbstoreService.openStore(
+      `userspace:${serverService.server.id},${this.userId}`,
+      {
+        local: {
+          doc: {
+            name: this.DocStorageType.identifier,
+            opts: {
+              id: `${serverService.server.id}:` + this.userId,
+              flavour: serverService.server.id,
+              type: 'userspace',
+            },
+          },
+        },
+        remotes: {
+          cloud: {
+            doc: {
+              name: 'CloudDocStorage',
+              opts: {
+                id: this.userId,
+                serverBaseUrl: serverService.server.baseUrl,
+                type: 'userspace',
+              },
+            },
+          },
+        },
+      }
+    );
+    this.client = store;
+    this.client.docFrontend.start();
+    this.disposables.push(() => dispose());
   }
 }

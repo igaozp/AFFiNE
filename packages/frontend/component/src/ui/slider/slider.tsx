@@ -107,7 +107,7 @@ export const Slider = ({
           {!!nodes &&
             nodes.map((nodeValue, index) => (
               <div
-                key={index}
+                key={nodeValue}
                 className={styles.nodeStyle}
                 data-active={value && value[0] >= nodeValue}
                 data-disabled={disabled}

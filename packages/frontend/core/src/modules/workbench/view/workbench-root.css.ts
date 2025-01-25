@@ -5,7 +5,6 @@ export const workbenchRootContainer = style({
   display: 'flex',
   height: '100%',
   flex: 1,
-  overflow: 'hidden',
 });
 
 export const workbenchViewContainer = style({

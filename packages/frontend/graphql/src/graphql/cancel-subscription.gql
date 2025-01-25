@@ -1,8 +1,8 @@
 mutation cancelSubscription(
-  $idempotencyKey: String!
   $plan: SubscriptionPlan = Pro
+  $workspaceId: String
 ) {
-  cancelSubscription(idempotencyKey: $idempotencyKey, plan: $plan) {
+  cancelSubscription(plan: $plan, workspaceId: $workspaceId) {
     id
     status
     nextBillAt

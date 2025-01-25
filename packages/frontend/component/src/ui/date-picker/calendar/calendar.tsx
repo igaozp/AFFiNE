@@ -18,7 +18,7 @@ export type { DatePickerProps } from './types';
  */
 export const DatePicker = (props: DatePickerProps) => {
   const finalProps = { ...defaultDatePickerProps, ...props };
-  const { value, gapX, gapY, onChange } = finalProps;
+  const { value, gapX, gapY, cellFontSize, cellSize, onChange } = finalProps;
 
   const [mode, setMode] = useState<SelectMode>('day');
   const [cursor, setCursor] = useState(dayjs(value));
@@ -26,6 +26,8 @@ export const DatePicker = (props: DatePickerProps) => {
   const variables = assignInlineVars({
     [styles.vars.gapX]: `${gapX}px`,
     [styles.vars.gapY]: `${gapY}px`,
+    [styles.vars.cellFontSize]: `${cellFontSize}px`,
+    [styles.vars.cellSize]: `${cellSize}px`,
   });
   const Component =
     mode === 'day' ? DayPicker : mode === 'month' ? MonthPicker : YearPicker;

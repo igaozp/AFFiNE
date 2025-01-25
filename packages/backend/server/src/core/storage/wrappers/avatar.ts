@@ -5,13 +5,13 @@ import type {
   EventPayload,
   PutObjectMetadata,
   StorageProvider,
-} from '../../../fundamentals';
+} from '../../../base';
 import {
   Config,
   OnEvent,
   StorageProviderFactory,
   URLHelper,
-} from '../../../fundamentals';
+} from '../../../base';
 
 @Injectable()
 export class AvatarStorage {

@@ -1,5 +1,6 @@
-import test from 'ava';
 import { fileURLToPath } from 'node:url';
+
+import test from 'ava';
 
 import { SqliteConnection, ValidationResult } from '../index';
 

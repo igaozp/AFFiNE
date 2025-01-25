@@ -2,15 +2,11 @@ import { Tabs, Tooltip } from '@affine/component';
 import { Button } from '@affine/component/ui/button';
 import { Menu } from '@affine/component/ui/menu';
 import { ShareInfoService } from '@affine/core/modules/share-doc';
-import { WorkspaceFlavour } from '@affine/env/workspace';
+import type { WorkspaceMetadata } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
+import type { Store } from '@blocksuite/affine/store';
 import { LockIcon, PublishIcon } from '@blocksuite/icons/rc';
-import type { Doc } from '@blocksuite/store';
-import {
-  useLiveData,
-  useService,
-  type WorkspaceMetadata,
-} from '@toeverything/infra';
+import { useLiveData, useService } from '@toeverything/infra';
 import { forwardRef, type PropsWithChildren, type Ref, useEffect } from 'react';
 
 import * as styles from './index.css';
@@ -19,7 +15,7 @@ import { SharePage } from './share-page';
 
 export interface ShareMenuProps extends PropsWithChildren {
   workspaceMetadata: WorkspaceMetadata;
-  currentPage: Doc;
+  currentPage: Store;
   onEnableAffineCloud: () => void;
   onOpenShareModal?: (open: boolean) => void;
 }
@@ -121,7 +117,7 @@ const CloudShareMenu = (props: ShareMenuProps) => {
 export const ShareMenu = (props: ShareMenuProps) => {
   const { workspaceMetadata } = props;
 
-  if (workspaceMetadata.flavour === WorkspaceFlavour.LOCAL) {
+  if (workspaceMetadata.flavour === 'local') {
     return <LocalShareMenu {...props} />;
   }
   return <CloudShareMenu {...props} />;

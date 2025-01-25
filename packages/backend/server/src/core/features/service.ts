@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
-import { CannotDeleteAllAdminAccount } from '../../fundamentals';
+import { CannotDeleteAllAdminAccount } from '../../base';
 import { WorkspaceType } from '../workspaces/types';
 import { FeatureConfigType, getFeature } from './feature';
 import { FeatureKind, FeatureType } from './types';
@@ -12,14 +12,9 @@ export class FeatureService {
 
   async getFeature<F extends FeatureType>(feature: F) {
     const data = await this.prisma.feature.findFirst({
-      where: {
-        feature,
-        type: FeatureKind.Feature,
-      },
+      where: { feature, type: FeatureKind.Feature },
       select: { id: true },
-      orderBy: {
-        version: 'desc',
-      },
+      orderBy: { version: 'desc' },
     });
 
     if (data) {
@@ -146,7 +141,7 @@ export class FeatureService {
     return configs.filter(feature => !!feature.feature);
   }
 
-  async getActivatedUserFeatures(userId: string) {
+  async getUserActivatedFeatures(userId: string) {
     const features = await this.prisma.userFeature.findMany({
       where: {
         userId,
@@ -173,7 +168,7 @@ export class FeatureService {
     return configs.filter(feature => !!feature.feature);
   }
 
-  async listFeatureUsers(feature: FeatureType) {
+  async listUsersByFeature(feature: FeatureType) {
     return this.prisma.userFeature
       .findMany({
         where: {
@@ -318,7 +313,9 @@ export class FeatureService {
     return configs.filter(feature => !!feature.feature);
   }
 
-  async listFeatureWorkspaces(feature: FeatureType): Promise<WorkspaceType[]> {
+  async listWorkspacesByFeature(
+    feature: FeatureType
+  ): Promise<WorkspaceType[]> {
     return this.prisma.workspaceFeature
       .findMany({
         where: {

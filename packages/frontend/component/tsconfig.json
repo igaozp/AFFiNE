@@ -1,29 +1,21 @@
 {
-  "extends": "../../../tsconfig.json",
-  "exclude": ["lib"],
-  "include": ["./src/**/*", "./src/**/*.json", "./src/type.d.ts"],
+  "extends": "../../../tsconfig.web.json",
+  "include": [
+    "./src/**/*",
+    "./src/**/*.json",
+    "./src/type.d.ts",
+    "./.storybook"
+  ],
   "compilerOptions": {
-    "composite": true,
-    "noEmit": false,
-    "outDir": "lib"
+    "rootDir": ".",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "references": [
-    {
-      "path": "../../frontend/i18n"
-    },
-    {
-      "path": "../../frontend/electron-api"
-    },
-    {
-      "path": "../../frontend/graphql"
-    },
-    {
-      "path": "../../common/debug"
-    },
-    {
-      "path": "../../common/infra"
-    },
-
-    { "path": "../../../tests/fixtures" }
+    { "path": "../../common/debug" },
+    { "path": "../electron-api" },
+    { "path": "../graphql" },
+    { "path": "../i18n" },
+    { "path": "../../../blocksuite/affine/all" }
   ]
 }

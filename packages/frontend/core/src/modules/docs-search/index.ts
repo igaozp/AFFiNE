@@ -1,12 +1,12 @@
 export { DocsSearchService } from './services/docs-search';
 
+import { type Framework } from '@toeverything/infra';
+
 import {
-  type Framework,
   WorkspaceLocalState,
   WorkspaceScope,
   WorkspaceService,
-} from '@toeverything/infra';
-
+} from '../workspace';
 import { DocsIndexer } from './entities/docs-indexer';
 import { DocsSearchService } from './services/docs-search';
 

@@ -4,7 +4,7 @@ vi.mock('lottie-web', () => ({
   default: {},
 }));
 
-vi.mock('@blocksuite/presets', () => ({
+vi.mock('@blocksuite/affine/presets', () => ({
   AffineEditorContainer: vi.fn(),
   BiDirectionalLinkPanel: vi.fn(),
   DocMetaTags: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('@blocksuite/presets', () => ({
 }));
 
 if (typeof window !== 'undefined' && HTMLCanvasElement) {
-  // @ts-expect-error
+  // @ts-expect-error allow vitest global mock
   HTMLCanvasElement.prototype.getContext = () => {
     return {
       fillRect: vi.fn(),

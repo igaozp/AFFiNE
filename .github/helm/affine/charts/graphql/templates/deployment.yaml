@@ -157,6 +157,11 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.copilot.secretName }}"
                 key: falSecret
+          - name: COPILOT_PERPLEXITY_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: "{{ .Values.app.copilot.secretName }}"
+                key: perplexitySecret
           - name: COPILOT_UNSPLASH_API_KEY
             valueFrom:
               secretKeyRef:

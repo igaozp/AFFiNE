@@ -1,13 +1,10 @@
 import type { InlineEditProps } from '@affine/component';
 import { InlineEdit } from '@affine/component';
-import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
-import { track } from '@affine/core/mixpanel';
-import {
-  DocsService,
-  useLiveData,
-  useService,
-  WorkspaceService,
-} from '@toeverything/infra';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { DocsService } from '@affine/core/modules/doc';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import { track } from '@affine/track';
+import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import type { HTMLAttributes } from 'react';
 

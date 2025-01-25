@@ -1,7 +1,6 @@
-import { WorkspaceFlavour } from '@affine/env/workspace';
-import type { WorkspaceService } from '@toeverything/infra';
 import { Service } from '@toeverything/infra';
 
+import type { WorkspaceService } from '../../workspace';
 import { ShareDocsList } from '../entities/share-docs-list';
 
 export class ShareDocsListService extends Service {
@@ -10,7 +9,11 @@ export class ShareDocsListService extends Service {
   }
 
   shareDocs =
-    this.workspaceService.workspace.flavour === WorkspaceFlavour.AFFINE_CLOUD
+    this.workspaceService.workspace.flavour !== 'local'
       ? this.framework.createEntity(ShareDocsList)
       : null;
+
+  override dispose(): void {
+    this.shareDocs?.dispose();
+  }
 }

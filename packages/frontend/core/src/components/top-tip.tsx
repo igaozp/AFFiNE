@@ -1,23 +1,22 @@
 import { BrowserWarning, LocalDemoTips } from '@affine/component/affine-banner';
-import { WorkspaceFlavour } from '@affine/env/workspace';
 import { Trans, useI18n } from '@affine/i18n';
-import { useLiveData, useService, type Workspace } from '@toeverything/infra';
-import { useSetAtom } from 'jotai';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useState } from 'react';
 
-import { authAtom } from '../atoms';
-import { useEnableCloud } from '../hooks/affine/use-enable-cloud';
+import { useEnableCloud } from '../components/hooks/affine/use-enable-cloud';
 import { AuthService } from '../modules/cloud';
+import { GlobalDialogService } from '../modules/dialogs';
+import type { Workspace } from '../modules/workspace';
 
 const minimumChromeVersion = 106;
 
 const shouldShowWarning = (() => {
-  if (environment.isElectron) {
+  if (BUILD_CONFIG.isElectron) {
     // even though desktop has compatibility issues,
     //  we don't want to show the warning
     return false;
   }
-  if (environment.isMobile) {
+  if (BUILD_CONFIG.isMobileEdition) {
     return true;
   }
   if (environment.isChrome && environment.chromeVersion) {
@@ -69,15 +68,15 @@ export const TopTip = ({
   const [showLocalDemoTips, setShowLocalDemoTips] = useState(true);
   const confirmEnableCloud = useEnableCloud();
 
-  const setAuthModal = useSetAtom(authAtom);
+  const globalDialogService = useService(GlobalDialogService);
   const onLogin = useCallback(() => {
-    setAuthModal({ openModal: true, state: 'signIn' });
-  }, [setAuthModal]);
+    globalDialogService.open('sign-in', {});
+  }, [globalDialogService]);
 
   if (
+    !BUILD_CONFIG.isElectron &&
     showLocalDemoTips &&
-    !environment.isElectron &&
-    workspace.flavour === WorkspaceFlavour.LOCAL
+    workspace.flavour === 'local'
   ) {
     return (
       <LocalDemoTips

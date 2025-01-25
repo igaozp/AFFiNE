@@ -1,29 +1,27 @@
-import { BlockStdScope, type EditorHost } from '@blocksuite/block-std';
-import { WithDisposable } from '@blocksuite/block-std';
+import { WorkspaceImpl } from '@affine/core/modules/workspace/impls/workspace';
+import { BlockStdScope, type EditorHost } from '@blocksuite/affine/block-std';
 import {
   type AffineAIPanelWidgetConfig,
-  EdgelessEditorBlockSpecs,
-} from '@blocksuite/blocks';
-import { AffineSchemas } from '@blocksuite/blocks/schemas';
-import type { Doc } from '@blocksuite/store';
-import { DocCollection, Schema } from '@blocksuite/store';
+  SpecProvider,
+} from '@blocksuite/affine/blocks';
+import { AffineSchemas } from '@blocksuite/affine/blocks/schemas';
+import { WithDisposable } from '@blocksuite/affine/global/utils';
+import { Schema, type Store } from '@blocksuite/affine/store';
 import { css, html, LitElement, nothing } from 'lit';
-import { customElement, property, query } from 'lit/decorators.js';
+import { property, query } from 'lit/decorators.js';
 import { createRef, type Ref, ref } from 'lit/directives/ref.js';
 
-import { getAIPanel } from '../ai-panel';
 import { PPTBuilder } from '../slides/index';
+import { getAIPanelWidget } from '../utils/ai-widgets';
+import type { AIContext } from '../utils/context';
 
 export const createSlidesRenderer: (
   host: EditorHost,
-  ctx: {
-    get: () => Record<string, unknown>;
-    set: (data: Record<string, unknown>) => void;
-  }
+  ctx: AIContext
 ) => AffineAIPanelWidgetConfig['answerRenderer'] = (host, ctx) => {
   return (answer, state) => {
     if (state === 'generating') {
-      const panel = getAIPanel(host);
+      const panel = getAIPanelWidget(host);
       panel.generatingElement?.updateLoadingProgress(2);
       return nothing;
     }
@@ -48,14 +46,15 @@ export const createSlidesRenderer: (
   };
 };
 
-@customElement('ai-slides-renderer')
 export class AISlidesRenderer extends WithDisposable(LitElement) {
   static override styles = css``;
 
   private readonly _editorContainer: Ref<HTMLDivElement> =
     createRef<HTMLDivElement>();
 
-  private _doc!: Doc;
+  private _doc!: Store;
+
+  private _docCollection: WorkspaceImpl | null = null;
 
   @query('editor-host')
   private accessor _editorHost!: EditorHost;
@@ -78,7 +77,7 @@ export class AISlidesRenderer extends WithDisposable(LitElement) {
     requestAnimationFrame(() => {
       if (!this._editorHost) return;
       PPTBuilder(this._editorHost)
-        .process(this.text)
+        ?.process(this.text)
         .then(res => {
           if (res && this.ctx) {
             this.ctx.set({
@@ -86,7 +85,7 @@ export class AISlidesRenderer extends WithDisposable(LitElement) {
               images: res.images,
             });
             // refresh loading menu item
-            getAIPanel(this.host)
+            getAIPanelWidget(this.host)
               .shadowRoot?.querySelector('ai-panel-answer')
               ?.requestUpdate();
           }
@@ -208,8 +207,9 @@ export class AISlidesRenderer extends WithDisposable(LitElement) {
           ${ref(this._editorContainer)}
         >
           ${new BlockStdScope({
-            doc: this._doc,
-            extensions: EdgelessEditorBlockSpecs,
+            store: this._doc,
+            extensions:
+              SpecProvider.getInstance().getSpec('edgeless:preview').value,
           }).render()}
         </div>
         <div class="mask"></div>
@@ -220,12 +220,11 @@ export class AISlidesRenderer extends WithDisposable(LitElement) {
     super.connectedCallback();
 
     const schema = new Schema().register(AffineSchemas);
-    const collection = new DocCollection({
+    const collection = new WorkspaceImpl({
       schema,
       id: 'SLIDES_PREVIEW',
     });
     collection.meta.initialize();
-    collection.start();
     const doc = collection.createDoc();
 
     doc.load(() => {
@@ -235,6 +234,12 @@ export class AISlidesRenderer extends WithDisposable(LitElement) {
 
     doc.resetHistory();
     this._doc = doc;
+    this._docCollection = collection;
+  }
+
+  override disconnectedCallback(): void {
+    this._docCollection?.dispose();
+    super.disconnectedCallback();
   }
 }
 

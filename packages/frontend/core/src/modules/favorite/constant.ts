@@ -4,8 +4,8 @@ export const FavoriteSupportType = [
   'tag',
   'folder',
 ] as const;
-export type FavoriteSupportType = 'collection' | 'doc' | 'tag' | 'folder';
+export type FavoriteSupportTypeUnion = 'collection' | 'doc' | 'tag' | 'folder';
 export const isFavoriteSupportType = (
   type: string
-): type is FavoriteSupportType =>
-  FavoriteSupportType.includes(type as FavoriteSupportType);
+): type is FavoriteSupportTypeUnion =>
+  FavoriteSupportType.includes(type as FavoriteSupportTypeUnion);

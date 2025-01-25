@@ -12,8 +12,6 @@ on:
           - beta
           - stable
           - internal
-env:
-  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
 permissions:
   contents: 'write'
@@ -100,6 +98,7 @@ jobs:
           CAPTCHA_TURNSTILE_SECRET: ${{ secrets.CAPTCHA_TURNSTILE_SECRET }}
           COPILOT_OPENAI_API_KEY: ${{ secrets.COPILOT_OPENAI_API_KEY }}
           COPILOT_FAL_API_KEY: ${{ secrets.COPILOT_FAL_API_KEY }}
+          COPILOT_PERPLEXITY_API_KEY: ${{ secrets.COPILOT_PERPLEXITY_API_KEY }}
           COPILOT_UNSPLASH_API_KEY: ${{ secrets.COPILOT_UNSPLASH_API_KEY }}
           METRICS_CUSTOMER_IO_TOKEN: ${{ secrets.METRICS_CUSTOMER_IO_TOKEN }}
           MAILER_SENDER: ${{ secrets.OAUTH_EMAIL_SENDER }}
@@ -173,41 +172,31 @@ jobs:
           BLOCKSUITE_REPO_PATH: ${{ github.workspace }}/blocksuite
       - name: Post Failed event to a Slack channel
         id: failed-slack
-        uses: slackapi/slack-github-action@v1.27.0
+        uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() && contains(needs.*.result, 'failure') }}
         with:
-          channel-id: ${{ secrets.RELEASE_SLACK_CHNNEL_ID }}
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy failed `${{ github.event.inputs.flavor }}`>",
-                    "type": "mrkdwn"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+            channel: ${{ secrets.RELEASE_SLACK_CHNNEL_ID }}
+            text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy failed `${{ github.event.inputs.flavor }}`>"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy failed `${{ github.event.inputs.flavor }}`>"
       - name: Post Cancel event to a Slack channel
         id: cancel-slack
-        uses: slackapi/slack-github-action@v1.27.0
+        uses: slackapi/slack-github-action@v2.0.0
         if: ${{ always() && contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'failure') }}
         with:
-          channel-id: ${{ secrets.RELEASE_SLACK_CHNNEL_ID }}
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          method: chat.postMessage
           payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy cancelled `${{ github.event.inputs.flavor }}`>",
-                    "type": "mrkdwn"
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+            channel: ${{ secrets.RELEASE_SLACK_CHNNEL_ID }}
+            text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy cancelled `${{ github.event.inputs.flavor }}`>"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Backend deploy cancelled `${{ github.event.inputs.flavor }}`>"

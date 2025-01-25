@@ -6,7 +6,7 @@ import type { DataValidator } from './types';
 function inputType(val: any) {
   return val === null ||
     Array.isArray(val) ||
-    val.constructor === 'Object' ||
+    val.constructor === Object ||
     !val.constructor /* Object.create(null) */
     ? 'json'
     : typeof val;
@@ -52,32 +52,40 @@ export const dataValidators = {
     validate(table, data) {
       for (const key in data) {
         const field = table.schema[key];
-        if (!field) {
-          throw new Error(
-            `[Table(${table.name})]: Field '${key}' is not defined but set in entity.`
-          );
-        }
+        if (field) {
+          const val = data[key];
 
-        const val = data[key];
+          if (val === undefined) {
+            delete data[key];
+            continue;
+          }
 
-        if (val === undefined) {
-          delete data[key];
-          continue;
-        }
+          if (val === null) {
+            if (!field.optional) {
+              throw new Error(
+                `[Table(${table.name})]: Field '${key}' is required but not set.`
+              );
+            }
+            continue;
+          }
 
-        if (val === null) {
-          if (!field.optional) {
+          const typeGet = inputType(val);
+
+          if (field.type === 'enum') {
+            if (!field.values?.includes(val)) {
+              throw new Error(
+                `[Table(${table.name})]: Field '${key}' value '${val}' is not valid. Expected one of [${field.values?.join(', ')}].`
+              );
+            }
+          } else if (!typeMatches(field.type, typeGet)) {
             throw new Error(
-              `[Table(${table.name})]: Field '${key}' is required but not set.`
+              `[Table(${table.name})]: Field '${key}' type mismatch. Expected ${field.type} got ${typeGet}.`
             );
           }
-          continue;
-        }
-
-        const typeGet = inputType(val);
-        if (!typeMatches(field.type, typeGet)) {
+        } else if (!table.isDocumentTable) {
+          // strict check field existence for normal table
           throw new Error(
-            `[Table(${table.name})]: Field '${key}' type mismatch. Expected ${field.type} got ${typeGet}.`
+            `[Table(${table.name})]: Field '${key}' is not defined but set in entity.`
           );
         }
       }
@@ -86,33 +94,41 @@ export const dataValidators = {
   DataTypeShouldExactlyMatch: {
     validate(table, data) {
       const keys: Set<string> = new Set();
+
       for (const key in data) {
         const field = table.schema[key];
-        if (!field) {
+        if (field) {
+          const val = data[key];
+
+          if (val === undefined || val === null) {
+            if (!field.optional) {
+              throw new Error(
+                `[Table(${table.name})]: Field '${key}' is required but not set.`
+              );
+            }
+            continue;
+          }
+
+          const typeGet = inputType(val);
+          if (field.type === 'enum') {
+            if (!field.values?.includes(val)) {
+              throw new Error(
+                `[Table(${table.name})]: Field '${key}' value '${val}' is not valid. Expected one of [${field.values?.join(', ')}].`
+              );
+            }
+          } else if (!typeMatches(field.type, typeGet)) {
+            throw new Error(
+              `[Table(${table.name})]: Field '${key}' type mismatch. Expected type '${field.type}' but got '${typeGet}'.`
+            );
+          }
+
+          keys.add(key);
+        } else if (!table.isDocumentTable) {
+          // strict check field existence for normal table
           throw new Error(
             `[Table(${table.name})]: Field '${key}' is not defined but set in entity.`
           );
         }
-
-        const val = data[key];
-
-        if (val === undefined || val === null) {
-          if (!field.optional) {
-            throw new Error(
-              `[Table(${table.name})]: Field '${key}' is required but not set.`
-            );
-          }
-          continue;
-        }
-
-        const typeGet = inputType(val);
-        if (!typeMatches(field.type, typeGet)) {
-          throw new Error(
-            `[Table(${table.name})]: Field '${key}' type mismatch. Expected type '${field.type}' but got '${typeGet}'.`
-          );
-        }
-
-        keys.add(key);
       }
 
       for (const key in table.schema) {

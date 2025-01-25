@@ -143,9 +143,9 @@ export const Quotas: Quota[] = [
     configs: {
       // quota name
       name: 'Restricted',
-      // single blob limit 10MB
+      // single blob limit 1MB
       blobLimit: OneMB,
-      // total blob limit 1GB
+      // total blob limit 10MB
       storageQuota: 10 * OneMB,
       // history period of validity 30 days
       historyPeriod: 30 * OneDay,
@@ -174,12 +174,31 @@ export const Quotas: Quota[] = [
       copilotActionLimit: 10,
     },
   },
+  {
+    feature: QuotaType.TeamPlanV1,
+    type: FeatureKind.Quota,
+    version: 1,
+    configs: {
+      // quota name
+      name: 'Team Workspace',
+      // single blob limit 100MB
+      blobLimit: 500 * OneMB,
+      // total blob limit 100GB
+      storageQuota: 100 * OneGB,
+      // seat quota 20GB per seat
+      seatQuota: 20 * OneGB,
+      // history period of validity 30 days
+      historyPeriod: 30 * OneDay,
+      // member limit 1, override by workspace config
+      memberLimit: 1,
+    },
+  },
 ];
 
-export function getLatestQuota(type: QuotaType) {
+export function getLatestQuota<Q extends QuotaType>(type: Q): Quota<Q> {
   const quota = Quotas.filter(f => f.feature === type);
   quota.sort((a, b) => b.version - a.version);
-  return quota[0];
+  return quota[0] as Quota<Q>;
 }
 
 export const FreePlan = getLatestQuota(QuotaType.FreePlanV1);

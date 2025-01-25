@@ -14,7 +14,7 @@ export interface DatePickerProps {
 
   /**
    * Customize the vertical gap between each row, in `px`
-   * @default 8
+   * @default 8 (mobile: 16)
    */
   gapY?: number;
 
@@ -24,6 +24,18 @@ export interface DatePickerProps {
    * @default 8
    */
   gapX?: number;
+
+  /**
+   * Customize the size of the cell, in `px`
+   * @default 28 (mobile: 34)
+   */
+  cellSize?: number;
+
+  /**
+   * Customize the font size of the cell, in `px`
+   * @default 14 (mobile: 17)
+   */
+  cellFontSize?: number;
 
   /**
    * Customize weekdays, use `,` to separate each day
@@ -73,7 +85,9 @@ export type SelectMode = 'day' | 'month' | 'year';
 export const defaultDatePickerProps = {
   format: 'YYYY-MM-DD',
   gapX: 8,
-  gapY: 8,
+  gapY: BUILD_CONFIG.isMobileEdition ? 16 : 8,
+  cellFontSize: BUILD_CONFIG.isMobileEdition ? 17 : 14,
+  cellSize: BUILD_CONFIG.isMobileEdition ? 34 : 28,
   weekDays: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].join(','),
   monthNames: [
     'Jan',

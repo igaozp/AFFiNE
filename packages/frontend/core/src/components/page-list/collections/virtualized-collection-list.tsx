@@ -1,8 +1,8 @@
-import { useDeleteCollectionInfo } from '@affine/core/hooks/affine/use-delete-collection-info';
+import { useDeleteCollectionInfo } from '@affine/core/components/hooks/affine/use-delete-collection-info';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import type { Collection, DeleteCollectionInfo } from '@affine/env/filter';
 import { Trans } from '@affine/i18n';
-import { useService, WorkspaceService } from '@toeverything/infra';
-import type { ReactElement } from 'react';
+import { useService } from '@toeverything/infra';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { CollectionService } from '../../../modules/collection';
@@ -42,12 +42,10 @@ export const VirtualizedCollectionList = ({
   collections,
   collectionMetas,
   setHideHeaderCreateNewCollection,
-  node,
   handleCreateCollection,
 }: {
   collections: Collection[];
   collectionMetas: CollectionMeta[];
-  node: ReactElement | null;
   handleCreateCollection: () => void;
   setHideHeaderCreateNewCollection: (hide: boolean) => void;
 }) => {
@@ -66,8 +64,8 @@ export const VirtualizedCollectionList = ({
   });
 
   const filteredSelectedCollectionIds = useMemo(() => {
-    const ids = collections.map(collection => collection.id);
-    return selectedCollectionIds.filter(id => ids.includes(id));
+    const ids = new Set(collections.map(collection => collection.id));
+    return selectedCollectionIds.filter(id => ids.has(id));
   }, [collections, selectedCollectionIds]);
 
   const hideFloatingToolbar = useCallback(() => {
@@ -107,9 +105,7 @@ export const VirtualizedCollectionList = ({
         atTopThreshold={80}
         atTopStateChange={setHideHeaderCreateNewCollection}
         onSelectionActiveChange={setShowFloatingToolbar}
-        heading={
-          <CollectionListHeader node={node} onCreate={handleCreateCollection} />
-        }
+        heading={<CollectionListHeader onCreate={handleCreateCollection} />}
         selectedIds={filteredSelectedCollectionIds}
         onSelectedIdsChange={setSelectedCollectionIds}
         items={collectionMetas}

@@ -26,7 +26,7 @@ test('Create new workspace, then delete it', async ({ page, workspace }) => {
     'Test Workspace'
   );
   await openSettingModal(page);
-  await openWorkspaceSettingPanel(page, 'Test Workspace');
+  await openWorkspaceSettingPanel(page);
   await page.getByTestId('delete-workspace-button').click();
   await expect(
     page.locator('.affine-notification-center').first()
@@ -64,7 +64,7 @@ test('Delete last workspace', async ({ page }) => {
     node => node.textContent
   );
   await openSettingModal(page);
-  await openWorkspaceSettingPanel(page, currentWorkspaceName as string);
+  await openWorkspaceSettingPanel(page);
   await page.getByTestId('delete-workspace-button').click();
   await page
     .getByTestId('delete-workspace-input')

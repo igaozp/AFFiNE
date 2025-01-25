@@ -1,5 +1,4 @@
 import { DebugLogger } from '@affine/debug';
-import { apis } from '@affine/electron-api';
 import { Entity, LiveData } from '@toeverything/infra';
 import {
   debounceTime,
@@ -9,6 +8,8 @@ import {
   switchMap,
   tap,
 } from 'rxjs';
+
+import type { DesktopApiService } from '../../desktop-api';
 
 const logger = new DebugLogger('affine:find-in-page');
 
@@ -38,10 +39,10 @@ export class FindInPage extends Entity {
               let findNext = true;
               return this.direction$.pipe(
                 switchMap(direction => {
-                  if (apis?.findInPage) {
+                  if (this.electronApi?.handler?.findInPage) {
                     this.isSearching$.next(true);
                     const currentId = ++searchId;
-                    return apis?.findInPage
+                    return this.electronApi.handler.findInPage
                       .find(searchText, {
                         forward: direction === 'forward',
                         findNext,
@@ -69,7 +70,7 @@ export class FindInPage extends Entity {
     null
   );
 
-  constructor() {
+  constructor(private readonly electronApi: DesktopApiService) {
     super();
     // TODO(@Peng): hide on navigation
   }
@@ -112,6 +113,6 @@ export class FindInPage extends Entity {
 
   clear() {
     logger.debug('clear');
-    apis?.findInPage.clear().catch(logger.error);
+    this.electronApi.handler.findInPage.clear().catch(logger.error);
   }
 }

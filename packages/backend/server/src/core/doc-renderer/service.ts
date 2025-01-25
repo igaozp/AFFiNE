@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { applyUpdate, Doc } from 'yjs';
 
-import { Cache, type EventPayload, OnEvent } from '../../fundamentals';
+import { Cache, type EventPayload, OnEvent } from '../../base';
 import { PgWorkspaceDocStorageAdapter } from '../doc';
 import {
   type PageDocContent,

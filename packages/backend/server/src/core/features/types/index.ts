@@ -76,20 +76,24 @@ export const Features: Feature[] = [
 
 /// ======== schema infer ========
 
+export const FeatureConfigSchema = z.discriminatedUnion('feature', [
+  featureCopilot,
+  featureEarlyAccess,
+  featureAIEarlyAccess,
+  featureUnlimitedWorkspace,
+  featureUnlimitedCopilot,
+  featureAdministrator,
+]);
+
 export const FeatureSchema = commonFeatureSchema
   .extend({
     type: z.literal(FeatureKind.Feature),
   })
-  .and(
-    z.discriminatedUnion('feature', [
-      featureCopilot,
-      featureEarlyAccess,
-      featureAIEarlyAccess,
-      featureUnlimitedWorkspace,
-      featureUnlimitedCopilot,
-      featureAdministrator,
-    ])
-  );
+  .and(FeatureConfigSchema);
+
+export type FeatureConfig<F extends FeatureType> = (z.infer<
+  typeof FeatureConfigSchema
+> & { feature: F })['configs'];
 
 export type Feature = z.infer<typeof FeatureSchema>;
 

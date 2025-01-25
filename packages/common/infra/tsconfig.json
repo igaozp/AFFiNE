@@ -1,20 +1,10 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.web.json",
   "include": ["./src"],
   "compilerOptions": {
-    "composite": true,
-    "noEmit": false,
-    "outDir": "lib"
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "references": [
-    {
-      "path": "../env"
-    },
-    {
-      "path": "../debug"
-    },
-    {
-      "path": "./tsconfig.node.json"
-    }
-  ]
+  "references": [{ "path": "../debug" }, { "path": "../env" }]
 }

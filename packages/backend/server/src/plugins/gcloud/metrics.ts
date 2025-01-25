@@ -2,19 +2,33 @@ import { MetricExporter } from '@google-cloud/opentelemetry-cloud-monitoring-exp
 import { TraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter';
 import { GcpDetectorSync } from '@google-cloud/opentelemetry-resource-util';
 import { Global, Provider } from '@nestjs/common';
+import { getEnv } from '@opentelemetry/core';
 import { Resource } from '@opentelemetry/resources';
 import {
   MetricReader,
   PeriodicExportingMetricReader,
 } from '@opentelemetry/sdk-metrics';
 import { SpanExporter } from '@opentelemetry/sdk-trace-node';
+import {
+  SEMRESATTRS_CONTAINER_NAME,
+  SEMRESATTRS_K8S_POD_NAME,
+} from '@opentelemetry/semantic-conventions';
 
-import { OptionalModule } from '../../fundamentals';
-import { OpentelemetryFactory } from '../../fundamentals/metrics';
+import { OptionalModule } from '../../base';
+import { OpentelemetryFactory } from '../../base/metrics';
 
 export class GCloudOpentelemetryFactory extends OpentelemetryFactory {
   override getResource(): Resource {
-    return super.getResource().merge(new GcpDetectorSync().detect());
+    const env = getEnv();
+    return super
+      .getResource()
+      .merge(
+        new Resource({
+          [SEMRESATTRS_K8S_POD_NAME]: env.HOSTNAME,
+          [SEMRESATTRS_CONTAINER_NAME]: env.CONTAINER_NAME,
+        })
+      )
+      .merge(new GcpDetectorSync().detect());
   }
 
   override getMetricReader(): MetricReader {

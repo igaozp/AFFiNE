@@ -1,14 +1,14 @@
-import { useEnableCloud } from '@affine/core/hooks/affine/use-enable-cloud';
-import { track } from '@affine/core/mixpanel';
-import type { Doc } from '@blocksuite/store';
-import { type Workspace } from '@toeverything/infra';
+import { useEnableCloud } from '@affine/core/components/hooks/affine/use-enable-cloud';
+import type { Workspace } from '@affine/core/modules/workspace';
+import { track } from '@affine/track';
+import type { Store } from '@blocksuite/affine/store';
 import { useCallback } from 'react';
 
 import { ShareMenu } from './share-menu';
 
 type SharePageModalProps = {
   workspace: Workspace;
-  page: Doc;
+  page: Store;
 };
 
 export const SharePageButton = ({ workspace, page }: SharePageModalProps) => {

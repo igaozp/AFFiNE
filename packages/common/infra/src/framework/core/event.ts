@@ -33,7 +33,7 @@ export class EventBus {
     });
 
     for (const handler of handlers.values()) {
-      this.on(handler.event.id, handler.handler);
+      this.on(handler.event, handler.handler);
     }
   }
 
@@ -41,23 +41,25 @@ export class EventBus {
     return this.parent?.root ?? this;
   }
 
-  on<T>(id: string, listener: (event: FrameworkEvent<T>) => void) {
-    if (!this.listeners[id]) {
-      this.listeners[id] = [];
+  on<T>(event: FrameworkEvent<T>, listener: (event: T) => void) {
+    if (!this.listeners[event.id]) {
+      this.listeners[event.id] = [];
     }
-    this.listeners[id].push(listener);
-    const off = this.parent?.on(id, listener);
+    this.listeners[event.id].push(listener);
+    const off = this.parent?.on(event, listener);
     return () => {
-      this.off(id, listener);
       off?.();
+      this.off(event.id, listener);
     };
   }
 
-  off<T>(id: string, listener: (event: FrameworkEvent<T>) => void) {
-    if (!this.listeners[id]) {
+  private off(eventId: string, listener: (event: any) => void) {
+    if (!this.listeners[eventId]) {
       return;
     }
-    this.listeners[id] = this.listeners[id].filter(l => l !== listener);
+    this.listeners[eventId] = this.listeners[eventId].filter(
+      l => l !== listener
+    );
   }
 
   emit<T>(event: FrameworkEvent<T>, payload: T) {
@@ -73,6 +75,15 @@ export class EventBus {
         console.error(e);
       }
     });
+  }
+
+  dispose(): void {
+    for (const eventId of Object.keys(this.listeners)) {
+      for (const listener of this.listeners[eventId]) {
+        this.parent?.off(eventId, listener);
+      }
+    }
+    this.listeners = {};
   }
 }
 

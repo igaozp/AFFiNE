@@ -176,7 +176,6 @@ function createKey() {
 
 function warning(cond: any, message: string) {
   if (!cond) {
-    // eslint-disable-next-line no-console
     if (typeof console !== 'undefined') console.warn(message);
 
     try {
@@ -186,7 +185,6 @@ function warning(cond: any, message: string) {
       // find the source for a warning that appears in the console by
       // enabling "pause on exceptions" in your JavaScript debugger.
       throw new Error(message);
-      // eslint-disable-next-line no-empty
     } catch {}
   }
 }
@@ -201,7 +199,7 @@ type Events<F> = {
   call: (arg: any) => void;
 };
 
-// eslint-disable-next-line @typescript-eslint/ban-types
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 function createEvents<F extends Function>(): Events<F> {
   let handlers: F[] = [];
 

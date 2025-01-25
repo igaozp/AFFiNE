@@ -2,6 +2,7 @@
 
 User-agent: *
 Allow: /
+Allow: /api/workspaces/*/blobs/*
 Disallow: /oauth/*
 Disallow: /workspace/*
 Disallow: /public-workspace/*

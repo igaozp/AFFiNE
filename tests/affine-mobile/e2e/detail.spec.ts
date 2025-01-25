@@ -1,5 +1,13 @@
 import { test } from '@affine-test/kit/mobile';
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+
+const openDocInfoModal = async (page: Page) => {
+  await page.click('[data-testid="detail-page-header-more-button"]');
+  await expect(page.getByRole('dialog')).toBeVisible();
+
+  await page.getByRole('menuitem', { name: 'view info' }).click();
+  await expect(page.getByTestId('mobile-menu-back-button')).toBeVisible();
+};
 
 test.beforeEach(async ({ page }) => {
   const docsTab = page.locator('#app-tabs').getByRole('tab', { name: 'all' });
@@ -18,17 +26,32 @@ test('switch to page mode', async ({ page }) => {
   await page.click('[data-testid="detail-page-header-more-button"]');
   await expect(page.getByRole('dialog')).toBeVisible();
 
-  await page.getByRole('menuitem', { name: 'convert to page' }).click();
+  await page.getByRole('menuitem', { name: 'Default to Page mode' }).click();
   await expect(page.locator('.doc-title-container')).toBeVisible();
 });
 
-test('doc info', async ({ page }) => {
-  await page.click('[data-testid="detail-page-header-more-button"]');
-  await expect(page.getByRole('dialog')).toBeVisible();
-
-  await page.getByRole('menuitem', { name: 'view info' }).click();
-  await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
-
+test('can show doc info', async ({ page }) => {
+  await openDocInfoModal(page);
   await expect(page.getByRole('dialog')).toContainText('Created');
   await expect(page.getByRole('dialog')).toContainText('Updated');
+});
+
+test('can add text property', async ({ page }) => {
+  await openDocInfoModal(page);
+
+  await expect(
+    page.getByRole('button', { name: 'Add property' })
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add property' }).click();
+  await page.getByRole('menuitem', { name: 'Text' }).click();
+
+  await expect(
+    page.getByTestId('mobile-menu-back-button').last()
+  ).toBeVisible();
+  await page.getByTestId('mobile-menu-back-button').last().click();
+
+  await expect(page.getByTestId('mobile-menu-back-button')).toContainText(
+    'Write, Draw, Plan all at Once'
+  );
 });

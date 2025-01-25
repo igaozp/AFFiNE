@@ -1,4 +1,4 @@
-import { invoicesQuery } from '@affine/graphql';
+import { invoicesQuery, workspaceInvoicesQuery } from '@affine/graphql';
 import { Store } from '@toeverything/infra';
 
 import type { GraphQLService } from '../services/graphql';
@@ -20,5 +20,24 @@ export class InvoicesStore extends Store {
     }
 
     return data.currentUser;
+  }
+
+  async fetchWorkspaceInvoices(
+    skip: number,
+    take: number,
+    workspaceId: string,
+    signal?: AbortSignal
+  ) {
+    const data = await this.graphqlService.gql({
+      query: workspaceInvoicesQuery,
+      variables: { skip, take, workspaceId },
+      context: { signal },
+    });
+
+    if (!data.workspace) {
+      throw new Error('No workspace');
+    }
+
+    return data.workspace;
   }
 }

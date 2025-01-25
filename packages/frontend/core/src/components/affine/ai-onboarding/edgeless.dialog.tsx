@@ -1,13 +1,12 @@
 import { Button, FlexWrapper, notify } from '@affine/component';
-import { openSettingModalAtom } from '@affine/core/atoms';
-import { track } from '@affine/core/mixpanel';
 import { SubscriptionService } from '@affine/core/modules/cloud';
+import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import { EditorService } from '@affine/core/modules/editor';
 import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import { AiIcon } from '@blocksuite/icons/rc';
-import { useLiveData, useServices } from '@toeverything/infra';
+import { useLiveData, useService, useServices } from '@toeverything/infra';
 import { cssVar } from '@toeverything/theme';
-import { useAtomValue, useSetAtom } from 'jotai';
 import Lottie from 'lottie-react';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -51,28 +50,26 @@ export const AIOnboardingEdgeless = () => {
   const notifyId = useLiveData(edgelessNotifyId$);
   const generalAIOnboardingOpened = useLiveData(showAIOnboardingGeneral$);
   const aiSubscription = useLiveData(subscriptionService.subscription.ai$);
-  const settingModalOpen = useAtomValue(openSettingModalAtom);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
-
-  const setSettingModal = useSetAtom(openSettingModalAtom);
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mode = useLiveData(editorService.editor.mode$);
 
   const goToPricingPlans = useCallback(() => {
     track.$.aiOnboarding.dialog.viewPlans();
-    setSettingModal({
-      open: true,
+    workspaceDialogService.open('setting', {
       activeTab: 'plans',
       scrollAnchor: 'aiPricingPlan',
     });
-  }, [setSettingModal]);
+  }, [workspaceDialogService]);
 
   useEffect(() => {
-    if (settingModalOpen.open) return;
     if (generalAIOnboardingOpened) return;
     if (notifyId) return;
     if (mode !== 'edgeless') return;
-    clearTimeout(timeoutRef.current);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
     timeoutRef.current = setTimeout(() => {
       // try to close local onboarding
       notify.dismiss(localNotifyId$.value);
@@ -128,7 +125,6 @@ export const AIOnboardingEdgeless = () => {
     goToPricingPlans,
     mode,
     notifyId,
-    settingModalOpen,
     t,
   ]);
 

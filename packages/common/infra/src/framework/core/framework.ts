@@ -1,4 +1,3 @@
-import type { Component } from './components/component';
 import type { Entity } from './components/entity';
 import type { Scope } from './components/scope';
 import type { Service } from './components/service';
@@ -408,8 +407,6 @@ class FrameworkEditor {
    *
    * @example
    * ```ts
-   * override(OriginClass, NewClass, [dependencies, ...])
-   * or
    * override(Identifier, Class, [dependencies, ...])
    * or
    * override(Identifier, Instance)
@@ -418,10 +415,10 @@ class FrameworkEditor {
    * ```
    */
   override = <
-    Arg1 extends GeneralIdentifier<any>,
-    Arg2 extends Type<Trait> | ComponentFactory<Trait> | Trait | null,
+    Arg1 extends Identifier<any>,
+    Arg2 extends Type<Trait> | ComponentFactory<Trait> | Trait,
     Arg3 extends Deps,
-    Trait extends Component = IdentifierType<Arg1>,
+    Trait = IdentifierType<Arg1>,
     Deps = Arg2 extends Type<Trait>
       ? TypesToDeps<ConstructorParameters<Arg2>>
       : [],

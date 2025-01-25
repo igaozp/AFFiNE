@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/* oxlint-disable @typescript-eslint/no-non-null-assertion */
 // Custom configurations for AFFiNE Cloud
 // ====================================================================================
 // Q: WHY THIS FILE EXISTS?
@@ -17,6 +17,11 @@
 // ====================================================================================
 const env = process.env;
 
+AFFiNE.serverName = AFFiNE.affine.canary
+  ? 'AFFiNE Canary Cloud'
+  : AFFiNE.affine.beta
+    ? 'AFFiNE Beta Cloud'
+    : 'AFFiNE Cloud';
 AFFiNE.metrics.enabled = !AFFiNE.node.test;
 
 if (env.R2_OBJECT_STORAGE_ACCOUNT_ID) {
@@ -26,6 +31,8 @@ if (env.R2_OBJECT_STORAGE_ACCOUNT_ID) {
       accessKeyId: env.R2_OBJECT_STORAGE_ACCESS_KEY_ID!,
       secretAccessKey: env.R2_OBJECT_STORAGE_SECRET_ACCESS_KEY!,
     },
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
   });
   AFFiNE.storages.avatar.provider = 'cloudflare-r2';
   AFFiNE.storages.avatar.bucket = 'account-avatar';
@@ -52,13 +59,6 @@ AFFiNE.use('copilot', {
   fal: {
     apiKey: '',
   },
-});
-AFFiNE.use('redis', {
-  host: env.REDIS_SERVER_HOST,
-  db: 0,
-  port: 6379,
-  username: env.REDIS_SERVER_USER,
-  password: env.REDIS_SERVER_PASSWORD,
 });
 AFFiNE.use('payment', {
   stripe: {

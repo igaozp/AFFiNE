@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 
+import { Config, SkipThrottle } from './base';
 import { Public } from './core/auth';
-import { Config, SkipThrottle } from './fundamentals';
 
 @Controller('/info')
 export class AppController {

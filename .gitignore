@@ -29,7 +29,6 @@ node_modules
 
 # IDE - VSCode
 .vscode/*
-!.vscode/tasks.json
 !.vscode/settings.template.json
 !.vscode/launch.template.json
 !.vscode/extensions.json
@@ -59,7 +58,6 @@ Thumbs.db
 .vercel
 out/
 storybook-static
-i18n-generated.ts
 
 test-results
 playwright-report
@@ -82,3 +80,7 @@ apps/web/next-routes.conf
 
 packages/frontend/templates/edgeless
 packages/frontend/core/public/static/templates
+
+# script
+af
+af.cmd

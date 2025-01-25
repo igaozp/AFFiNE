@@ -4,17 +4,21 @@ import type {
   EdgelessCopilotWidget,
   EdgelessElementToolbarWidget,
   EdgelessRootBlockComponent,
-} from '@blocksuite/blocks';
-import { EdgelessCopilotToolbarEntry } from '@blocksuite/blocks';
-import { noop } from '@blocksuite/global/utils';
+} from '@blocksuite/affine/blocks';
+import { EdgelessCopilotToolbarEntry } from '@blocksuite/affine/blocks';
+import { noop } from '@blocksuite/affine/global/utils';
 import { html } from 'lit';
 
-import { edgelessActionGroups } from './actions-config';
+import { AIProvider } from '../../provider';
+import { getAIPanelWidget } from '../../utils/ai-widgets';
+import { getEdgelessCopilotWidget } from '../../utils/edgeless';
+import { extractSelectedContent } from '../../utils/extract';
+import { edgelessAIGroups } from './actions-config';
 
 noop(EdgelessCopilotToolbarEntry);
 
 export function setupEdgelessCopilot(widget: EdgelessCopilotWidget) {
-  widget.groups = edgelessActionGroups;
+  widget.groups = edgelessAIGroups;
 }
 
 export function setupEdgelessElementToolbarAIEntry(
@@ -26,7 +30,7 @@ export function setupEdgelessElementToolbarAIEntry(
     },
     render: (edgeless: EdgelessRootBlockComponent) => {
       const chain = edgeless.service.std.command.chain();
-      const filteredGroups = edgelessActionGroups.reduce((pre, group) => {
+      const filteredGroups = edgelessAIGroups.reduce((pre, group) => {
         const filtered = group.items.filter(item =>
           item.showWhen?.(chain, 'edgeless' as DocMode, edgeless.host)
         );
@@ -38,10 +42,39 @@ export function setupEdgelessElementToolbarAIEntry(
 
       if (filteredGroups.every(group => group.items.length === 0)) return null;
 
+      const handler = () => {
+        const aiPanel = getAIPanelWidget(edgeless.host);
+        if (aiPanel.config) {
+          aiPanel.config.generateAnswer = ({ finish, input }) => {
+            finish('success');
+            aiPanel.discard();
+            extractSelectedContent(edgeless.host)
+              .then(context => {
+                AIProvider.slots.requestSendWithChat.emit({
+                  input,
+                  context,
+                  host: edgeless.host,
+                });
+              })
+              .catch(console.error);
+          };
+          aiPanel.config.inputCallback = text => {
+            const copilotWidget = getEdgelessCopilotWidget(edgeless.host);
+            const panel = copilotWidget.shadowRoot?.querySelector(
+              'edgeless-copilot-panel'
+            );
+            if (panel instanceof HTMLElement) {
+              panel.style.visibility = text ? 'hidden' : 'visible';
+            }
+          };
+        }
+      };
+
       return html`<edgeless-copilot-toolbar-entry
         .edgeless=${edgeless}
         .host=${edgeless.host}
-        .groups=${edgelessActionGroups}
+        .groups=${edgelessAIGroups}
+        .onClick=${handler}
       ></edgeless-copilot-toolbar-entry>`;
     },
   });

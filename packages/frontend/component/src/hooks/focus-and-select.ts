@@ -21,7 +21,7 @@ export const useAutoFocus = <T extends HTMLElement = HTMLElement>(
 export const useAutoSelect = <T extends HTMLInputElement = HTMLInputElement>(
   autoSelect?: boolean
 ) => {
-  const ref = useAutoFocus<T>(autoSelect);
+  const ref = useRef<T | null>(null);
 
   useLayoutEffect(() => {
     if (ref.current && autoSelect) {

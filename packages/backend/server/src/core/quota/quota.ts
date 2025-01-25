@@ -1,10 +1,13 @@
-import { PrismaTransaction } from '../../fundamentals';
+import { pick } from 'lodash-es';
+
+import { PrismaTransaction } from '../../base';
 import { formatDate, formatSize, Quota, QuotaSchema } from './types';
 
 const QuotaCache = new Map<number, QuotaConfig>();
 
 export class QuotaConfig {
   readonly config: Quota;
+  readonly override?: Partial<Quota['configs']>;
 
   static async get(tx: PrismaTransaction, featureId: number) {
     const cachedQuota = QuotaCache.get(featureId);
@@ -31,7 +34,7 @@ export class QuotaConfig {
     return config;
   }
 
-  private constructor(data: any) {
+  private constructor(data: any, override?: any) {
     const config = QuotaSchema.safeParse(data);
     if (config.success) {
       this.config = config.data;
@@ -42,6 +45,41 @@ export class QuotaConfig {
         )})}`
       );
     }
+    if (override) {
+      const overrideConfig = QuotaSchema.safeParse({
+        ...config.data,
+        configs: Object.assign({}, config.data.configs, override),
+      });
+      if (overrideConfig.success) {
+        this.override = pick(
+          overrideConfig.data.configs,
+          Object.keys(override)
+        );
+      } else {
+        throw new Error(
+          `Invalid quota override config: ${override.error.message}, ${JSON.stringify(
+            data
+          )})}`
+        );
+      }
+    }
+  }
+
+  withOverride(override: any) {
+    if (override) {
+      return new QuotaConfig(
+        this.config,
+        Object.assign({}, this.override, override)
+      );
+    }
+    return this;
+  }
+
+  checkOverride(override: any) {
+    return QuotaSchema.safeParse({
+      ...this.config,
+      configs: Object.assign({}, this.config.configs, override),
+    });
   }
 
   get version() {
@@ -54,29 +92,43 @@ export class QuotaConfig {
   }
 
   get blobLimit() {
-    return this.config.configs.blobLimit;
+    return this.override?.blobLimit || this.config.configs.blobLimit;
   }
 
   get businessBlobLimit() {
     return (
-      this.config.configs.businessBlobLimit || this.config.configs.blobLimit
+      this.override?.businessBlobLimit ||
+      this.config.configs.businessBlobLimit ||
+      this.override?.blobLimit ||
+      this.config.configs.blobLimit
     );
   }
 
+  private get additionalQuota() {
+    const seatQuota =
+      this.override?.seatQuota || this.config.configs.seatQuota || 0;
+    return this.memberLimit * seatQuota;
+  }
+
   get storageQuota() {
-    return this.config.configs.storageQuota;
+    const baseQuota =
+      this.override?.storageQuota || this.config.configs.storageQuota;
+    return baseQuota + this.additionalQuota;
   }
 
   get historyPeriod() {
-    return this.config.configs.historyPeriod;
+    return this.override?.historyPeriod || this.config.configs.historyPeriod;
   }
 
   get memberLimit() {
-    return this.config.configs.memberLimit;
+    return this.override?.memberLimit || this.config.configs.memberLimit;
   }
 
   get copilotActionLimit() {
-    return this.config.configs.copilotActionLimit || undefined;
+    if ('copilotActionLimit' in this.config.configs) {
+      return this.config.configs.copilotActionLimit || undefined;
+    }
+    return undefined;
   }
 
   get humanReadable() {

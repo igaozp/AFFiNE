@@ -23,7 +23,7 @@ export class CopilotWorkflowService {
       const node = workflow.get(nodeData.id);
       if (!node) {
         this.logger.error(
-          `Failed to init workflow ${name}: node ${nodeData.id} not found`
+          `Failed to init workflow ${graph.name}: node ${nodeData.id} not found`
         );
         throw new Error(`Node ${nodeData.id} not found`);
       }
@@ -31,7 +31,7 @@ export class CopilotWorkflowService {
         const edge = workflow.get(edgeId);
         if (!edge) {
           this.logger.error(
-            `Failed to init workflow ${name}: edge ${edgeId} not found in node ${nodeData.id}`
+            `Failed to init workflow ${graph.name}: edge ${edgeId} not found in node ${nodeData.id}`
           );
           throw new Error(`Edge ${edgeId} not found`);
         }

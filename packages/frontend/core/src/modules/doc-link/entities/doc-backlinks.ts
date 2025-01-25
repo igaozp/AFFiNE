@@ -1,12 +1,17 @@
-import type { DocService } from '@toeverything/infra';
 import { Entity, LiveData } from '@toeverything/infra';
 
+import type { DocService } from '../../doc';
 import type { DocsSearchService } from '../../docs-search';
 
 export interface Backlink {
   docId: string;
   blockId: string;
   title: string;
+  noteBlockId?: string;
+  displayMode?: string;
+  parentBlockId?: string;
+  parentFlavour?: string;
+  markdownPreview?: string;
 }
 
 export class DocBacklinks extends Entity {

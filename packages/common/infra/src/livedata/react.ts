@@ -45,11 +45,11 @@ export function useEnsureLiveData<T>(liveData$: LiveData<T>): NonNullable<T> {
 
   if (data === null || data === undefined) {
     return use(
-      new Promise((resolve, reject) => {
+      new Promise<NonNullable<T>>((resolve, reject) => {
         const subscription = liveData$.subscribe({
           next(value) {
-            if (value === null || value === undefined) {
-              resolve(value);
+            if (value !== null && value !== undefined) {
+              resolve(value as NonNullable<T>);
               subscription.unsubscribe();
             }
           },
@@ -64,5 +64,5 @@ export function useEnsureLiveData<T>(liveData$: LiveData<T>): NonNullable<T> {
     );
   }
 
-  return data;
+  return data as NonNullable<T>;
 }

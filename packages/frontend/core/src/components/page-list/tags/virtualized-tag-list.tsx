@@ -1,6 +1,7 @@
 import type { Tag } from '@affine/core/modules/tag';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import { Trans } from '@affine/i18n';
-import { useService, WorkspaceService } from '@toeverything/infra';
+import { useService } from '@toeverything/infra';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ListFloatingToolbar } from '../components/list-floating-toolbar';
@@ -36,8 +37,8 @@ export const VirtualizedTagList = ({
   );
 
   const filteredSelectedTagIds = useMemo(() => {
-    const ids = tags.map(tag => tag.id);
-    return selectedTagIds.filter(id => ids.includes(id));
+    const ids = new Set(tags.map(tag => tag.id));
+    return selectedTagIds.filter(id => ids.has(id));
   }, [selectedTagIds, tags]);
 
   const hideFloatingToolbar = useCallback(() => {

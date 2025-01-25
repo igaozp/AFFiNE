@@ -86,11 +86,16 @@ export const DropTarget: StoryFn<{ canDrop: boolean }> = ({ canDrop }) => {
     }),
     []
   );
-  const { dropTargetRef } = useDropTarget(
+  const { dropTargetRef } = useDropTarget<DNDData<{ text: string }>>(
     () => ({
       canDrop,
       onDrop(data) {
         setDropData(prev => prev + data.source.data.text);
+      },
+      fromExternalData(args) {
+        return {
+          text: args.source.getStringData(args.source.types[0]) || 'no value',
+        };
       },
     }),
     [canDrop]
@@ -115,6 +120,8 @@ export const DropTarget: StoryFn<{ canDrop: boolean }> = ({ canDrop }) => {
         }`}
       </style>
       <div ref={dragRef}>👉 hello</div>
+      <a href="https://www.google.com">https://www.google.com</a>
+      <p>Some random texts</p>
       <div className="drop-target" ref={dropTargetRef}>
         {dropData || 'Drop here'}
       </div>

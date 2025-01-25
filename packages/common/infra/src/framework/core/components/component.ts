@@ -1,7 +1,6 @@
 import { CONSTRUCTOR_CONTEXT } from '../constructor-context';
 import type { FrameworkProvider } from '../provider';
 
-// eslint-disable-next-line @typescript-eslint/ban-types
 export class Component<Props = {}> {
   readonly framework: FrameworkProvider;
 

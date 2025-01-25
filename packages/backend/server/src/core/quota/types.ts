@@ -17,27 +17,39 @@ import { ByteUnit, OneDay, OneKB } from './constant';
 export enum QuotaType {
   FreePlanV1 = 'free_plan_v1',
   ProPlanV1 = 'pro_plan_v1',
+  TeamPlanV1 = 'team_plan_v1',
   LifetimeProPlanV1 = 'lifetime_pro_plan_v1',
   // only for test, smaller quota
   RestrictedPlanV1 = 'restricted_plan_v1',
 }
 
-const quotaPlan = z.object({
+const basicQuota = z.object({
+  name: z.string(),
+  blobLimit: z.number().positive().int(),
+  storageQuota: z.number().positive().int(),
+  seatQuota: z.number().positive().int().nullish(),
+  historyPeriod: z.number().positive().int(),
+  memberLimit: z.number().positive().int(),
+  businessBlobLimit: z.number().positive().int().nullish(),
+});
+
+const userQuota = basicQuota.extend({
+  copilotActionLimit: z.number().positive().int().nullish(),
+});
+
+const userQuotaPlan = z.object({
   feature: z.enum([
     QuotaType.FreePlanV1,
     QuotaType.ProPlanV1,
     QuotaType.LifetimeProPlanV1,
     QuotaType.RestrictedPlanV1,
   ]),
-  configs: z.object({
-    name: z.string(),
-    blobLimit: z.number().positive().int(),
-    storageQuota: z.number().positive().int(),
-    historyPeriod: z.number().positive().int(),
-    memberLimit: z.number().positive().int(),
-    businessBlobLimit: z.number().positive().int().nullish(),
-    copilotActionLimit: z.number().positive().int().nullish(),
-  }),
+  configs: userQuota,
+});
+
+const workspaceQuotaPlan = z.object({
+  feature: z.enum([QuotaType.TeamPlanV1]),
+  configs: basicQuota,
 });
 
 /// ======== schema infer ========
@@ -46,9 +58,12 @@ export const QuotaSchema = commonFeatureSchema
   .extend({
     type: z.literal(FeatureKind.Quota),
   })
-  .and(z.discriminatedUnion('feature', [quotaPlan]));
+  .and(z.discriminatedUnion('feature', [userQuotaPlan, workspaceQuotaPlan]));
 
-export type Quota = z.infer<typeof QuotaSchema>;
+export type Quota<Q extends QuotaType = QuotaType> = z.infer<
+  typeof QuotaSchema
+> & { feature: Q };
+export type QuotaConfigType = Quota['configs'];
 
 /// ======== query types ========
 
@@ -120,3 +135,8 @@ export function formatSize(bytes: number, decimals: number = 2): string {
 export function formatDate(ms: number): string {
   return `${(ms / OneDay).toFixed(0)} days`;
 }
+
+export type QuotaBusinessType = QuotaQueryType & {
+  businessBlobLimit: number;
+  unlimited: boolean;
+};

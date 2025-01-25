@@ -69,7 +69,14 @@
                 },
                 "background": "--affine-palette-transparent",
                 "xywh": "[-1514.2376426616445,-2905.469439482463,1879.6362584319918,1087.2819474283258]",
-                "index": "a2"
+                "index": "Zz",
+                "childElementIds": {
+                  "TJhFxmm-4S": true,
+                  "Kl_nXMFhVd": true,
+                  "vep0c6lfir": true,
+                  "sm_bXJ4OIr": true,
+                  "CXWd92w-Qi": true
+                }
               },
               "children": []
             },
@@ -293,7 +300,14 @@
                 },
                 "background": "--affine-palette-transparent",
                 "xywh": "[-1514.2376426616445,-2905.469439482463,1879.6362584319918,1087.2819474283258]",
-                "index": "a2"
+                "index": "Zz",
+                "childElementIds": {
+                  "TJhFxmm-4S": true,
+                  "Kl_nXMFhVb": true,
+                  "vep0c6lfir": true,
+                  "sm_bXJ4OIr": true,
+                  "CXWd92w-Qi": true
+                }
               },
               "children": []
             },
@@ -517,7 +531,14 @@
                 },
                 "background": "--affine-palette-transparent",
                 "xywh": "[-1514.2376426616445,-2905.469439482463,1879.6362584319918,1087.2819474283258]",
-                "index": "a2"
+                "index": "Zz",
+                "childElementIds": {
+                  "TJhFxmm-4S": true,
+                  "Kl_nXMFhVc": true,
+                  "vep0c6lfir": true,
+                  "sm_bXJ4OIr": true,
+                  "CXWd92w-Qi": true
+                }
               },
               "children": []
             },
@@ -740,8 +761,15 @@
                   ]
                 },
                 "background": "--affine-palette-transparent",
-                "index": "a2",
-                "xywh": "[-1514.2376426616445,-2905.469439482463,1879.6362584319918,1087.2819474283258]"
+                "index": "Zz",
+                "xywh": "[-1514.2376426616445,-2905.469439482463,1879.6362584319918,1087.2819474283258]",
+                "childElementIds": {
+                  "TJhFxmm-4S": true,
+                  "Kl_nXMFhVa": true,
+                  "vep0c6lfir": true,
+                  "sm_bXJ4OIr": true,
+                  "-e1FBf1VVV": true
+                }
               },
               "children": []
             },
@@ -965,7 +993,15 @@
                 },
                 "background": "--affine-palette-transparent",
                 "xywh": "[-2101.800074986049,1.1999424525670292,1933.7142508370534,1095.9999738420759]",
-                "index": "a0"
+                "index": "Zz",
+                "childElementIds": {
+                  "TJhFxmm-4S": true,
+                  "SphbFXlgh0": true,
+                  "_Tf8693XKA": true,
+                  "UNpbRMah1C": true,
+                  "aWw5W79SOg": true,
+                  "5zMsJG3EQa": true
+                }
               },
               "children": []
             },
@@ -1179,7 +1215,15 @@
                 },
                 "background": "--affine-palette-transparent",
                 "xywh": "[-2101.800074986049,1.1999424525670292,1933.7142508370534,1095.9999738420759]",
-                "index": "a0"
+                "index": "Zz",
+                "childElementIds": {
+                  "TJhFxmm-4S": true,
+                  "NLvbZwU4PA": true,
+                  "HZB7i-Ju4k": true,
+                  "UNpbRMah1C": true,
+                  "aWw5W79SOg": true,
+                  "5zMsJG3EQa": true
+                }
               },
               "children": []
             },
@@ -1393,7 +1437,15 @@
                 },
                 "background": "--affine-palette-transparent",
                 "xywh": "[-2101.800074986049,1.1999424525670292,1933.7142508370534,1095.9999738420759]",
-                "index": "a0"
+                "index": "Zz",
+                "childElementIds": {
+                  "TJhFxmm-4S": true,
+                  "FJGkatSaly": true,
+                  "8PC-diRv-2": true,
+                  "6MPeRodrBk": true,
+                  "lLFwOmRC7W": true,
+                  "CZkdeTlqzf": true
+                }
               },
               "children": []
             },

@@ -9,29 +9,29 @@ import {
   Skeleton,
 } from '@affine/component';
 import {
-  authAtom,
-  openSettingModalAtom,
-  openSignOutModalAtom,
-} from '@affine/core/atoms';
-import { track } from '@affine/core/mixpanel';
+  GlobalDialogService,
+  WorkspaceDialogService,
+} from '@affine/core/modules/dialogs';
 import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import { AccountIcon, SignOutIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { cssVar } from '@toeverything/theme';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
-import { useSetAtom } from 'jotai';
 import { useCallback, useEffect } from 'react';
 
 import {
   type AuthAccountInfo,
   AuthService,
-  ServerConfigService,
+  ServerService,
   SubscriptionService,
   UserCopilotQuotaService,
   UserQuotaService,
 } from '../../modules/cloud';
 import { UserPlanButton } from '../affine/auth/user-plan-button';
+import { useSignOut } from '../hooks/affine/use-sign-out';
+import { useCatchEventCallback } from '../hooks/use-catch-event-hook';
 import * as styles from './index.css';
 import { UnknownUserIcon } from './unknow-user';
 
@@ -59,11 +59,11 @@ const AuthorizedUserInfo = ({ account }: { account: AuthAccountInfo }) => {
 };
 
 const UnauthorizedUserInfo = () => {
-  const setOpen = useSetAtom(authAtom);
+  const globalDialogService = useService(GlobalDialogService);
 
   const openSignInModal = useCallback(() => {
-    setOpen(state => ({ ...state, openModal: true }));
-  }, [setOpen]);
+    globalDialogService.open('sign-in', {});
+  }, [globalDialogService]);
 
   return (
     <IconButton
@@ -78,21 +78,15 @@ const UnauthorizedUserInfo = () => {
 };
 
 const AccountMenu = () => {
-  const setSettingModalAtom = useSetAtom(openSettingModalAtom);
-  const setOpenSignOutModalAtom = useSetAtom(openSignOutModalAtom);
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const openSignOutModal = useSignOut();
 
   const onOpenAccountSetting = useCallback(() => {
     track.$.navigationPanel.profileAndBadge.openSettings({ to: 'account' });
-    setSettingModalAtom(prev => ({
-      ...prev,
-      open: true,
+    workspaceDialogService.open('setting', {
       activeTab: 'account',
-    }));
-  }, [setSettingModalAtom]);
-
-  const onOpenSignOutModal = useCallback(() => {
-    setOpenSignOutModalAtom(true);
-  }, [setOpenSignOutModalAtom]);
+    });
+  }, [workspaceDialogService]);
 
   const t = useI18n();
 
@@ -108,7 +102,7 @@ const AccountMenu = () => {
       <MenuItem
         prefixIcon={<SignOutIcon />}
         data-testid="workspace-modal-sign-out-option"
-        onClick={onOpenSignOutModal}
+        onClick={openSignOutModal}
       >
         {t['com.affine.workspace.cloud.account.logout']()}
       </MenuItem>
@@ -120,6 +114,14 @@ const CloudUsage = () => {
   const t = useI18n();
   const quota = useService(UserQuotaService).quota;
   const quotaError = useLiveData(quota.error$);
+
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const handleClick = useCatchEventCallback(() => {
+    workspaceDialogService.open('setting', {
+      activeTab: 'plans',
+      scrollAnchor: 'cloudPricingPlan',
+    });
+  }, [workspaceDialogService]);
 
   useEffect(() => {
     // revalidate quota to get the latest status
@@ -158,7 +160,7 @@ const CloudUsage = () => {
           <span>&nbsp;/&nbsp;</span>
           <span>{maxFormatted}</span>
         </div>
-        <UserPlanButton />
+        <UserPlanButton onClick={handleClick} />
       </div>
 
       <div className={styles.cloudUsageBar}>
@@ -193,22 +195,20 @@ const AIUsage = () => {
   const loading = copilotActionLimit === null || copilotActionUsed === null;
   const loadError = useLiveData(copilotQuotaService.copilotQuota.error$);
 
-  const setSettingModalAtom = useSetAtom(openSettingModalAtom);
+  const workspaceDialogService = useService(WorkspaceDialogService);
 
   const goToAIPlanPage = useCallback(() => {
-    setSettingModalAtom({
-      open: true,
+    workspaceDialogService.open('setting', {
       activeTab: 'plans',
       scrollAnchor: 'aiPricingPlan',
     });
-  }, [setSettingModalAtom]);
+  }, [workspaceDialogService]);
 
   const goToAccountSetting = useCallback(() => {
-    setSettingModalAtom({
-      open: true,
+    workspaceDialogService.open('setting', {
       activeTab: 'account',
     });
-  }, [setSettingModalAtom]);
+  }, [workspaceDialogService]);
 
   if (loading) {
     if (loadError) console.error(loadError);
@@ -277,10 +277,8 @@ const AIUsage = () => {
 };
 
 const OperationMenu = () => {
-  const serverConfigService = useService(ServerConfigService);
-  const serverFeatures = useLiveData(
-    serverConfigService.serverConfig.features$
-  );
+  const serverService = useService(ServerService);
+  const serverFeatures = useLiveData(serverService.server.features$);
 
   return (
     <>

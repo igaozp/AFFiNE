@@ -136,12 +136,14 @@ export const YearPicker = memo(function YearPicker(
       <div className={styles.decadeViewBody}>
         {matrix.map((row, i) => {
           return (
+            // eslint-disable-next-line react/no-array-index-key
             <div key={i} className={styles.decadeViewRow}>
-              {row.map((year, j) => {
+              {row.map(year => {
                 const isDisabled =
                   year.isAfter(DATE_MAX) || year.isBefore(DATE_MIN);
+                const yearValue = year.year();
                 return (
-                  <div key={j} className={styles.decadeViewBodyCell}>
+                  <div key={yearValue} className={styles.decadeViewBodyCell}>
                     <button
                       aria-disabled={isDisabled}
                       data-value={year.format('YYYY')}
@@ -154,7 +156,7 @@ export const YearPicker = memo(function YearPicker(
                         isDisabled ? undefined : () => onYearChange(year)
                       }
                     >
-                      {year.year()}
+                      {yearValue}
                     </button>
                   </div>
                 );

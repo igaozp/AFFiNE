@@ -2,7 +2,6 @@ import type {
   GetWorkspacePublicPageByIdQuery,
   PublicPageMode,
 } from '@affine/graphql';
-import type { DocService, WorkspaceService } from '@toeverything/infra';
 import {
   backoffRetry,
   catchErrorInto,
@@ -17,6 +16,8 @@ import {
 import { switchMap } from 'rxjs';
 
 import { isBackendError, isNetworkError } from '../../cloud';
+import type { DocService } from '../../doc';
+import type { WorkspaceService } from '../../workspace';
 import type { ShareStore } from '../stores/share';
 
 type ShareInfoType = GetWorkspacePublicPageByIdQuery['workspace']['publicPage'];

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 
-import { SessionCache } from '../../fundamentals';
+import { SessionCache } from '../../base';
 import { OAuthProviderName } from './config';
 import { OAuthProviderFactory } from './register';
 

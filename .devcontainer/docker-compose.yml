@@ -11,6 +11,7 @@ services:
     network_mode: service:db
     environment:
       DATABASE_URL: postgresql://affine:affine@db:5432/affine
+      REDIS_SERVER_HOST: redis
 
   db:
     image: postgres:latest
@@ -21,6 +22,10 @@ services:
       POSTGRES_PASSWORD: affine
       POSTGRES_USER: affine
       POSTGRES_DB: affine
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
 
 volumes:
   postgres-data:

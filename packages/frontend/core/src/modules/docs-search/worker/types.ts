@@ -30,18 +30,20 @@ export type WorkerInput =
   | {
       type: 'rootDoc';
       rootDocBuffer: Uint8Array;
+      rootDocId: string;
       allIndexedDocs: string[];
       reindexAll?: boolean;
     }
   | {
       type: 'doc';
-      storageDocId: string;
+      docId: string;
+      rootDocId: string;
       rootDocBuffer: Uint8Array;
       docBuffer: Uint8Array;
     };
 
 export interface WorkerOutput {
-  reindexDoc?: { docId: string; storageDocId: string }[];
+  reindexDoc?: { docId: string }[];
   addedDoc?: {
     id: string;
     blocks: Document<BlockIndexSchema>[];

@@ -2,7 +2,7 @@ import type { AnimationItem } from 'lottie-web';
 import lottie from 'lottie-web';
 import { useEffect, useRef } from 'react';
 
-interface CustomLottieProps {
+export interface CustomLottieProps {
   options: {
     loop?: boolean | number | undefined;
     autoReverse?: boolean | undefined;
@@ -26,7 +26,7 @@ export const InternalLottie = ({
   height,
 }: CustomLottieProps) => {
   const element = useRef<HTMLDivElement>(null);
-  const lottieInstance = useRef<AnimationItem>();
+  const lottieInstance = useRef<AnimationItem | null>(null);
   const directionRef = useRef<1 | -1>(1);
 
   useEffect(() => {

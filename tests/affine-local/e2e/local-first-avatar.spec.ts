@@ -1,6 +1,4 @@
-import { resolve } from 'node:path';
-
-import { rootDir, test } from '@affine-test/kit/playwright';
+import { ProjectRoot, test } from '@affine-test/kit/playwright';
 import { openHomePage } from '@affine-test/kit/utils/load-page';
 import {
   clickNewPageButton,
@@ -21,18 +19,29 @@ test('should create a page with a local first avatar and remove it', async ({
   await page.getByTestId('create-workspace-create-button').click();
   await page.waitForTimeout(1000);
   await page.getByTestId('workspace-name').click();
-  await page.getByTestId('workspace-card').nth(1).click();
+  await page
+    .getByTestId('workspace-card')
+    .nth(1)
+    .click({ position: { x: 10, y: 10 } });
   await page.getByTestId('settings-modal-trigger').click();
-  await page.getByTestId('current-workspace-label').click();
+  await page.getByTestId('workspace-setting:preference').click();
   await page
     .getByTestId('upload-avatar')
-    .setInputFiles(resolve(rootDir, 'tests', 'fixtures', 'blue.png'));
+    .setInputFiles(ProjectRoot.join('tests', 'fixtures', 'blue.png').value);
   await page.mouse.click(0, 0);
   await page.getByTestId('workspace-name').click();
-  await page.getByTestId('workspace-card').nth(0).click();
+  await page
+    .getByTestId('workspace-card')
+    .nth(0)
+    .getByTestId('workspace-avatar')
+    .click();
   await page.waitForTimeout(1000);
   await page.getByTestId('workspace-name').click();
-  await page.getByTestId('workspace-card').nth(1).click();
+  await page
+    .getByTestId('workspace-card')
+    .nth(1)
+    .getByTestId('workspace-avatar')
+    .click();
   const avatarCanvas = await page
     .getByTestId('workspace-avatar')
     .locator('canvas')
@@ -52,7 +61,7 @@ test('should create a page with a local first avatar and remove it', async ({
 
   // Click remove button to remove workspace avatar
   await page.getByTestId('settings-modal-trigger').click();
-  await page.getByTestId('current-workspace-label').click();
+  await page.getByTestId('workspace-setting:preference').click();
   await page.getByTestId('workspace-setting-avatar').hover();
   await page.getByTestId('workspace-setting-remove-avatar-button').click();
   await page.mouse.click(0, 0);

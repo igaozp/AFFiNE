@@ -1,29 +1,25 @@
 import type { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import { SettingsIcon } from '@blocksuite/icons/rc';
 import { appSettingAtom } from '@toeverything/infra';
 import type { createStore } from 'jotai';
 import type { useTheme } from 'next-themes';
 
-import type { useLanguageHelper } from '../hooks/affine/use-language-helper';
-import { track } from '../mixpanel';
-import type { EditorSettingService } from '../modules/editor-settting';
+import type { EditorSettingService } from '../modules/editor-setting';
 import { registerAffineCommand } from './registry';
 
 export function registerAffineSettingsCommands({
   t,
   store,
   theme,
-  languageHelper,
   editorSettingService,
 }: {
   t: ReturnType<typeof useI18n>;
   store: ReturnType<typeof createStore>;
   theme: ReturnType<typeof useTheme>;
-  languageHelper: ReturnType<typeof useLanguageHelper>;
   editorSettingService: EditorSettingService;
 }) {
   const unsubs: Array<() => void> = [];
-  const { onLanguageChange, languagesList, currentLanguage } = languageHelper;
   const updateSettings = editorSettingService.editorSetting.set.bind(
     editorSettingService.editorSetting
   );
@@ -148,29 +144,6 @@ export function registerAffineSettingsCommands({
     })
   );
 
-  // Display Language
-  languagesList.forEach(language => {
-    unsubs.push(
-      registerAffineCommand({
-        id: `affine:change-display-language-to-${language.name}`,
-        label: `${t['com.affine.cmdk.affine.display-language.to']()} ${
-          language.originalName
-        }`,
-        category: 'affine:settings',
-        icon: <SettingsIcon />,
-        preconditionStrategy: () => currentLanguage?.tag !== language.tag,
-        run() {
-          track.$.cmdk.settings.changeAppSetting({
-            key: 'language',
-            value: language.name,
-          });
-
-          onLanguageChange(language.tag);
-        },
-      })
-    );
-  });
-
   // Layout Style
   unsubs.push(
     registerAffineCommand({
@@ -183,7 +156,7 @@ export function registerAffineSettingsCommands({
         `,
       category: 'affine:settings',
       icon: <SettingsIcon />,
-      preconditionStrategy: () => environment.isElectron,
+      preconditionStrategy: () => BUILD_CONFIG.isElectron,
       run() {
         track.$.cmdk.settings.changeAppSetting({
           key: 'clientBorder',
@@ -201,10 +174,10 @@ export function registerAffineSettingsCommands({
     registerAffineCommand({
       id: `affine:change-full-width-layout`,
       label: () =>
-        `${t['com.affine.cmdk.affine.full-width-layout.to']()} ${t[
+        `${t[
           settings$.value.fullWidthLayout
-            ? 'com.affine.cmdk.affine.switch-state.off'
-            : 'com.affine.cmdk.affine.switch-state.on'
+            ? 'com.affine.cmdk.affine.default-page-width-layout.standard'
+            : 'com.affine.cmdk.affine.default-page-width-layout.full-width'
         ]()}`,
       category: 'affine:settings',
       icon: <SettingsIcon />,
@@ -231,7 +204,7 @@ export function registerAffineSettingsCommands({
         ]()}`,
       category: 'affine:settings',
       icon: <SettingsIcon />,
-      preconditionStrategy: () => environment.isElectron,
+      preconditionStrategy: () => BUILD_CONFIG.isElectron,
       run() {
         track.$.cmdk.settings.changeAppSetting({
           key: 'enableNoisyBackground',
@@ -257,7 +230,8 @@ export function registerAffineSettingsCommands({
         ]()}`,
       category: 'affine:settings',
       icon: <SettingsIcon />,
-      preconditionStrategy: () => environment.isElectron && environment.isMacOs,
+      preconditionStrategy: () =>
+        BUILD_CONFIG.isElectron && environment.isMacOs,
       run() {
         track.$.cmdk.settings.changeAppSetting({
           key: 'enableBlurBackground',

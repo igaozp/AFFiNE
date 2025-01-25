@@ -1,6 +1,8 @@
+import { DebugLogger } from '@affine/debug';
 import type { Observable } from 'rxjs';
-import { from, merge, of, Subject, throttleTime } from 'rxjs';
+import { merge, of, Subject, throttleTime } from 'rxjs';
 
+import { backoffRetry, fromPromise } from '../../../../livedata';
 import { exhaustMapWithTrailing } from '../../../../utils/';
 import {
   type AggregateOptions,
@@ -15,6 +17,8 @@ import {
   type SearchResult,
 } from '../../';
 import { DataStruct, type DataStructRWTransaction } from './data-struct';
+
+const logger = new DebugLogger('IndexedDBIndex');
 
 export class IndexedDBIndex<S extends Schema> implements Index<S> {
   data: DataStruct = new DataStruct(this.databaseName, this.schema);
@@ -61,14 +65,17 @@ export class IndexedDBIndex<S extends Schema> implements Index<S> {
     options: SearchOptions<any> = {}
   ): Observable<SearchResult<any, SearchOptions<any>>> {
     return merge(of(1), this.broadcast$).pipe(
-      throttleTime(500, undefined, { leading: true, trailing: true }),
+      throttleTime(3000, undefined, { leading: true, trailing: true }),
       exhaustMapWithTrailing(() => {
-        return from(
-          (async () => {
+        return fromPromise(async () => {
+          try {
             const trx = await this.data.readonly();
-            return this.data.search(trx, query, options);
-          })()
-        );
+            return await this.data.search(trx, query, options);
+          } catch (error) {
+            logger.error('search error', error);
+            throw error;
+          }
+        }).pipe(backoffRetry());
       })
     );
   }
@@ -88,14 +95,17 @@ export class IndexedDBIndex<S extends Schema> implements Index<S> {
     options: AggregateOptions<any> = {}
   ): Observable<AggregateResult<S, AggregateOptions<any>>> {
     return merge(of(1), this.broadcast$).pipe(
-      throttleTime(500, undefined, { leading: true, trailing: true }),
+      throttleTime(3000, undefined, { leading: true, trailing: true }),
       exhaustMapWithTrailing(() => {
-        return from(
-          (async () => {
+        return fromPromise(async () => {
+          try {
             const trx = await this.data.readonly();
-            return this.data.aggregate(trx, query, field, options);
-          })()
-        );
+            return await this.data.aggregate(trx, query, field, options);
+          } catch (error) {
+            logger.error('aggregate error', error);
+            throw error;
+          }
+        }).pipe(backoffRetry());
       })
     );
   }
@@ -120,7 +130,7 @@ export class IndexedDBIndexWriter<S extends Schema> implements IndexWriter<S> {
     return (await this.getAll([id]))[0] ?? null;
   }
 
-  async getAll(ids: string[]): Promise<Document<S>[]> {
+  async getAll(ids?: string[]): Promise<Document<S>[]> {
     const trx = await this.data.readonly();
     return this.data.getAll(trx, ids);
   }
@@ -138,6 +148,7 @@ export class IndexedDBIndexWriter<S extends Schema> implements IndexWriter<S> {
 
   async commit(): Promise<void> {
     await this.data.batchWrite(this.trx, this.deletes, this.inserts);
+    this.trx.commit();
     this.channel.postMessage(1);
   }
 

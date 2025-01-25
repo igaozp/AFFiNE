@@ -1,33 +1,38 @@
-import type { GraphQLService } from '@affine/core/modules/cloud';
-import { getIsOwnerQuery, leaveWorkspaceMutation } from '@affine/graphql';
+import type { WorkspaceServerService } from '@affine/core/modules/cloud';
+import { getWorkspaceInfoQuery, leaveWorkspaceMutation } from '@affine/graphql';
 import { Store } from '@toeverything/infra';
 
 export class WorkspacePermissionStore extends Store {
-  constructor(private readonly graphqlService: GraphQLService) {
+  constructor(private readonly workspaceServerService: WorkspaceServerService) {
     super();
   }
 
-  async fetchIsOwner(workspaceId: string, signal?: AbortSignal) {
-    const isOwner = await this.graphqlService.gql({
-      query: getIsOwnerQuery,
+  async fetchWorkspaceInfo(workspaceId: string, signal?: AbortSignal) {
+    if (!this.workspaceServerService.server) {
+      throw new Error('No Server');
+    }
+    const info = await this.workspaceServerService.server.gql({
+      query: getWorkspaceInfoQuery,
       variables: {
         workspaceId,
       },
       context: { signal },
     });
 
-    return isOwner.isOwner;
+    return info;
   }
 
   /**
    * @param workspaceName for send email
    */
-  async leaveWorkspace(workspaceId: string, workspaceName: string) {
-    await this.graphqlService.gql({
+  async leaveWorkspace(workspaceId: string) {
+    if (!this.workspaceServerService.server) {
+      throw new Error('No Server');
+    }
+    await this.workspaceServerService.server.gql({
       query: leaveWorkspaceMutation,
       variables: {
         workspaceId,
-        workspaceName,
       },
     });
   }

@@ -26,9 +26,11 @@ import { FeatureService } from './service';
 })
 export class FeatureModule {}
 
+export type { FeatureConfigType } from './feature';
 export {
   type CommonFeature,
   commonFeatureSchema,
+  type FeatureConfig,
   FeatureKind,
   Features,
   FeatureType,

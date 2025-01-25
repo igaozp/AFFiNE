@@ -8,3 +8,8 @@ export const button = style({
   fontWeight: 500,
   height: '28px',
 });
+export const createTips = style({
+  color: cssVar('textSecondaryColor'),
+  fontSize: 12,
+  lineHeight: '20px',
+});
