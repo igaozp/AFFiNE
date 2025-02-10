@@ -1,8 +1,8 @@
 mutation resumeSubscription(
-  $idempotencyKey: String!
   $plan: SubscriptionPlan = Pro
+  $workspaceId: String
 ) {
-  resumeSubscription(idempotencyKey: $idempotencyKey, plan: $plan) {
+  resumeSubscription(plan: $plan, workspaceId: $workspaceId) {
     id
     status
     nextBillAt

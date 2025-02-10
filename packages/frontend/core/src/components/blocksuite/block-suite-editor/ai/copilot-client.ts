@@ -3,23 +3,23 @@ import {
   cleanupCopilotSessionMutation,
   createCopilotMessageMutation,
   createCopilotSessionMutation,
-  fetcher as defaultFetcher,
   forkCopilotSessionMutation,
-  getBaseUrl,
   getCopilotHistoriesQuery,
   getCopilotHistoryIdsQuery,
   getCopilotSessionsQuery,
   GraphQLError,
   type GraphQLQuery,
   type QueryOptions,
+  type QueryResponse,
   type RequestOptions,
+  updateCopilotSessionMutation,
   UserFriendlyError,
 } from '@affine/graphql';
 import {
   GeneralNetworkError,
   PaymentRequiredError,
   UnauthorizedError,
-} from '@blocksuite/blocks';
+} from '@blocksuite/affine/blocks';
 import { getCurrentStore } from '@toeverything/infra';
 
 type OptionsField<T extends GraphQLQuery> =
@@ -57,61 +57,92 @@ export function handleError(src: any) {
   return err;
 }
 
-const fetcher = async <Query extends GraphQLQuery>(
-  options: QueryOptions<Query>
-) => {
-  try {
-    return await defaultFetcher<Query>(options);
-  } catch (err) {
-    throw handleError(err);
-  }
-};
-
 export class CopilotClient {
-  readonly backendUrl = getBaseUrl();
+  constructor(
+    readonly gql: <Query extends GraphQLQuery>(
+      options: QueryOptions<Query>
+    ) => Promise<QueryResponse<Query>>,
+    readonly fetcher: (input: string, init?: RequestInit) => Promise<Response>,
+    readonly eventSource: (
+      url: string,
+      eventSourceInitDict?: EventSourceInit
+    ) => EventSource
+  ) {}
 
   async createSession(
     options: OptionsField<typeof createCopilotSessionMutation>
   ) {
-    const res = await fetcher({
-      query: createCopilotSessionMutation,
-      variables: {
-        options,
-      },
-    });
-    return res.createCopilotSession;
+    try {
+      const res = await this.gql({
+        query: createCopilotSessionMutation,
+        variables: {
+          options,
+        },
+      });
+      return res.createCopilotSession;
+    } catch (err) {
+      throw resolveError(err);
+    }
+  }
+
+  async updateSession(
+    options: OptionsField<typeof updateCopilotSessionMutation>
+  ) {
+    try {
+      const res = await this.gql({
+        query: updateCopilotSessionMutation,
+        variables: {
+          options,
+        },
+      });
+      return res.updateCopilotSession;
+    } catch (err) {
+      throw resolveError(err);
+    }
   }
 
   async forkSession(options: OptionsField<typeof forkCopilotSessionMutation>) {
-    const res = await fetcher({
-      query: forkCopilotSessionMutation,
-      variables: {
-        options,
-      },
-    });
-    return res.forkCopilotSession;
+    try {
+      const res = await this.gql({
+        query: forkCopilotSessionMutation,
+        variables: {
+          options,
+        },
+      });
+      return res.forkCopilotSession;
+    } catch (err) {
+      throw resolveError(err);
+    }
   }
 
   async createMessage(
     options: OptionsField<typeof createCopilotMessageMutation>
   ) {
-    const res = await fetcher({
-      query: createCopilotMessageMutation,
-      variables: {
-        options,
-      },
-    });
-    return res.createCopilotMessage;
+    try {
+      const res = await this.gql({
+        query: createCopilotMessageMutation,
+        variables: {
+          options,
+        },
+      });
+      return res.createCopilotMessage;
+    } catch (err) {
+      throw resolveError(err);
+    }
   }
 
   async getSessions(workspaceId: string) {
-    const res = await fetcher({
-      query: getCopilotSessionsQuery,
-      variables: {
-        workspaceId,
-      },
-    });
-    return res.currentUser?.copilot;
+    try {
+      const res = await this.gql({
+        query: getCopilotSessionsQuery,
+        variables: {
+          workspaceId,
+        },
+      });
+      return res.currentUser?.copilot;
+    } catch (err) {
+      throw resolveError(err);
+    }
   }
 
   async getHistories(
@@ -121,16 +152,20 @@ export class CopilotClient {
       typeof getCopilotHistoriesQuery
     >['variables']['options']
   ) {
-    const res = await fetcher({
-      query: getCopilotHistoriesQuery,
-      variables: {
-        workspaceId,
-        docId,
-        options,
-      },
-    });
+    try {
+      const res = await this.gql({
+        query: getCopilotHistoriesQuery,
+        variables: {
+          workspaceId,
+          docId,
+          options,
+        },
+      });
 
-    return res.currentUser?.copilot?.histories;
+      return res.currentUser?.copilot?.histories;
+    } catch (err) {
+      throw resolveError(err);
+    }
   }
 
   async getHistoryIds(
@@ -140,16 +175,20 @@ export class CopilotClient {
       typeof getCopilotHistoriesQuery
     >['variables']['options']
   ) {
-    const res = await fetcher({
-      query: getCopilotHistoryIdsQuery,
-      variables: {
-        workspaceId,
-        docId,
-        options,
-      },
-    });
+    try {
+      const res = await this.gql({
+        query: getCopilotHistoryIdsQuery,
+        variables: {
+          workspaceId,
+          docId,
+          options,
+        },
+      });
 
-    return res.currentUser?.copilot?.histories;
+      return res.currentUser?.copilot?.histories;
+    } catch (err) {
+      throw resolveError(err);
+    }
   }
 
   async cleanupSessions(input: {
@@ -157,13 +196,17 @@ export class CopilotClient {
     docId: string;
     sessionIds: string[];
   }) {
-    const res = await fetcher({
-      query: cleanupCopilotSessionMutation,
-      variables: {
-        input,
-      },
-    });
-    return res.cleanupCopilotSession;
+    try {
+      const res = await this.gql({
+        query: cleanupCopilotSessionMutation,
+        variables: {
+          input,
+        },
+      });
+      return res.cleanupCopilotSession;
+    } catch (err) {
+      throw resolveError(err);
+    }
   }
 
   async chatText({
@@ -175,11 +218,11 @@ export class CopilotClient {
     messageId?: string;
     signal?: AbortSignal;
   }) {
-    const url = new URL(`${this.backendUrl}/api/copilot/chat/${sessionId}`);
+    let url = `/api/copilot/chat/${sessionId}`;
     if (messageId) {
-      url.searchParams.set('messageId', messageId);
+      url += `?messageId=${encodeURIComponent(messageId)}`;
     }
-    const response = await fetch(url.toString(), { signal });
+    const response = await this.fetcher(url.toString(), { signal });
     return response.text();
   }
 
@@ -194,11 +237,11 @@ export class CopilotClient {
     },
     endpoint = 'stream'
   ) {
-    const url = new URL(
-      `${this.backendUrl}/api/copilot/chat/${sessionId}/${endpoint}`
-    );
-    if (messageId) url.searchParams.set('messageId', messageId);
-    return new EventSource(url.toString());
+    let url = `/api/copilot/chat/${sessionId}/${endpoint}`;
+    if (messageId) {
+      url += `?messageId=${encodeURIComponent(messageId)}`;
+    }
+    return this.eventSource(url);
   }
 
   // Text or image to images
@@ -208,15 +251,18 @@ export class CopilotClient {
     seed?: string,
     endpoint = 'images'
   ) {
-    const url = new URL(
-      `${this.backendUrl}/api/copilot/chat/${sessionId}/${endpoint}`
-    );
-    if (messageId) {
-      url.searchParams.set('messageId', messageId);
+    let url = `/api/copilot/chat/${sessionId}/${endpoint}`;
+
+    if (messageId || seed) {
+      url += '?';
+      url += new URLSearchParams(
+        Object.fromEntries(
+          Object.entries({ messageId, seed }).filter(
+            ([_, v]) => v !== undefined
+          )
+        ) as Record<string, string>
+      ).toString();
     }
-    if (seed) {
-      url.searchParams.set('seed', seed);
-    }
-    return new EventSource(url);
+    return this.eventSource(url);
   }
 }

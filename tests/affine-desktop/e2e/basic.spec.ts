@@ -121,20 +121,10 @@ test('delete workspace', async ({ page }) => {
   // });
   await page.waitForTimeout(1000);
   await clickSideBarSettingButton(page);
-  await page.getByTestId('current-workspace-label').click();
+  await page.getByTestId('workspace-setting:preference').click();
   await expect(page.getByTestId('workspace-name-input')).toHaveValue(
     'Delete Me'
   );
-  const contentElement = page.getByTestId('setting-modal-content');
-  const boundingBox = await contentElement.boundingBox();
-  if (!boundingBox) {
-    throw new Error('boundingBox is null');
-  }
-  await page.mouse.move(
-    boundingBox.x + boundingBox.width / 2,
-    boundingBox.y + boundingBox.height / 2
-  );
-  await page.mouse.wheel(0, 500);
   await page.getByTestId('delete-workspace-button').click();
   await page.getByTestId('delete-workspace-input').fill('Delete Me');
   await page.getByTestId('delete-workspace-confirm-button').click();

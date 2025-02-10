@@ -232,12 +232,13 @@ export const CMDKGroup = ({
       style={{ overflowAnchor: 'none' }}
     >
       {items.map(item => {
-        const title = !isI18nString(item.label)
-          ? i18n.t(item.label.title)
-          : i18n.t(item.label);
-        const subTitle = !isI18nString(item.label)
-          ? item.label.subTitle && i18n.t(item.label.subTitle)
-          : null;
+        const [title, subTitle] = isI18nString(item.label)
+          ? [i18n.t(item.label), null]
+          : [
+              i18n.t(item.label.title),
+              item.label.subTitle ? i18n.t(item.label.subTitle) : null,
+            ];
+
         return (
           <Command.Item
             key={item.id}
@@ -313,9 +314,9 @@ const CMDKKeyBinding = ({ keyBinding }: { keyBinding: string }) => {
 
   return (
     <div className={styles.keybinding}>
-      {fragments.map((fragment, index) => {
+      {fragments.map(fragment => {
         return (
-          <div key={index} className={styles.keybindingFragment}>
+          <div key={fragment} className={styles.keybindingFragment}>
             {fragment}
           </div>
         );

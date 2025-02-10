@@ -39,7 +39,6 @@ export const button = style({
   outline: 0,
   borderRadius: 8,
   transition: 'all .3s',
-  cursor: 'pointer',
   ['WebkitAppRegion' as string]: 'no-drag',
 
   // hover layer
@@ -127,7 +126,7 @@ export const button = style({
         [bgVar]: cssVarV2('button/primary'),
         [textVar]: cssVarV2('button/pureWhiteText'),
         [iconColorVar]: cssVarV2('button/pureWhiteText'),
-        [borderColorVar]: cssVarV2('button/innerBlackBorder'),
+        [borderColorVar]: cssVarV2.layer.insideBorder.blackBorder,
       },
     },
     '&[data-variant="secondary"]': {
@@ -135,7 +134,7 @@ export const button = style({
         [bgVar]: cssVarV2('button/secondary'),
         [textVar]: cssVarV2('text/primary'),
         [iconColorVar]: cssVarV2('icon/primary'),
-        [borderColorVar]: cssVarV2('layer/insideBorder/border'),
+        [borderColorVar]: cssVarV2.layer.insideBorder.blackBorder,
       },
     },
     '&[data-variant="plain"]': {
@@ -152,7 +151,7 @@ export const button = style({
         [bgVar]: cssVarV2('button/error'),
         [textVar]: cssVarV2('button/pureWhiteText'),
         [iconColorVar]: cssVarV2('button/pureWhiteText'),
-        [borderColorVar]: cssVarV2('button/innerBlackBorder'),
+        [borderColorVar]: cssVarV2.layer.insideBorder.blackBorder,
       },
     },
     '&[data-variant="success"]': {
@@ -160,13 +159,17 @@ export const button = style({
         [bgVar]: cssVarV2('button/success'),
         [textVar]: cssVarV2('button/pureWhiteText'),
         [iconColorVar]: cssVarV2('button/pureWhiteText'),
-        [borderColorVar]: cssVarV2('button/innerBlackBorder'),
+        [borderColorVar]: cssVarV2.layer.insideBorder.blackBorder,
       },
     },
 
     // disabled
     '&[data-disabled]': {
       opacity: 0.5,
+    },
+
+    '&:not([data-disabled])': {
+      cursor: 'pointer',
     },
 
     // default keyboard focus style
@@ -179,6 +182,10 @@ export const button = style({
       left: 0,
       borderRadius: 'inherit',
       boxShadow: `0 0 0 1px ${cssVarV2('layer/insideBorder/primaryBorder')}`,
+    },
+    '&[data-mobile=true]:focus-visible::after': {
+      content: 'none',
+      display: 'none',
     },
   },
 });

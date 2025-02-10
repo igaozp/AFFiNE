@@ -6,6 +6,7 @@ export const root = style({
   height: '54px',
   // 42 + 12
   flexShrink: 0,
+  contain: 'strict',
   width: '100%',
   alignItems: 'stretch',
   transition: 'background-color 0.2s, opacity 0.2s',
@@ -73,7 +74,7 @@ globalStyle(`${root} > :last-child`, {
   paddingRight: '8px',
 });
 export const titleIconsWrapper = style({
-  padding: '0 5px',
+  width: 34,
   display: 'flex',
   alignItems: 'center',
   gap: '10px',
@@ -118,6 +119,8 @@ export const iconCell = style({
   fontSize: cssVar('fontH3'),
   color: cssVar('iconColor'),
   flexShrink: 0,
+  width: 24,
+  height: 24,
 });
 export const tagsCell = style({
   display: 'flex',

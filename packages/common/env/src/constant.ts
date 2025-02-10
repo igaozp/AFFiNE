@@ -1,18 +1,14 @@
 // This file should has not side effect
-import type { DocCollection } from '@blocksuite/store';
 
 declare global {
-  // eslint-disable-next-line no-var
+  // oxlint-disable-next-line no-var
   var __appInfo: {
     electron: boolean;
-    schema: string;
+    scheme: string;
     windowName: string;
   };
 }
 
-//#region runtime variables
-export const isElectron = !!globalThis.__appInfo?.electron;
-//#endregion
 export const DEFAULT_WORKSPACE_NAME = 'Demo Workspace';
 export const UNTITLED_WORKSPACE_NAME = 'Untitled';
 
@@ -90,17 +86,6 @@ export const Messages = {
     message: string;
   };
 };
-
-export class PageNotFoundError extends TypeError {
-  readonly docCollection: DocCollection;
-  readonly pageId: string;
-
-  constructor(docCollection: DocCollection, pageId: string) {
-    super();
-    this.docCollection = docCollection;
-    this.pageId = pageId;
-  }
-}
 
 export class WorkspaceNotFoundError extends TypeError {
   readonly workspaceId: string;

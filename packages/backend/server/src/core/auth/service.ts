@@ -1,15 +1,10 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import type { User, UserSession } from '@prisma/client';
-import { PrismaClient } from '@prisma/client';
 import type { CookieOptions, Request, Response } from 'express';
 import { assign, pick } from 'lodash-es';
 
-import { Config, MailService, SignUpForbidden } from '../../fundamentals';
-import { FeatureManagementService } from '../features/management';
-import { QuotaService } from '../quota/service';
-import { QuotaType } from '../quota/types';
-import { UserService } from '../user/service';
+import { Config, MailService, SignUpForbidden } from '../../base';
+import { Models, type User, type UserSession } from '../../models';
+import { FeatureService } from '../features';
 import type { CurrentUser } from './session';
 
 export function sessionUser(
@@ -46,36 +41,41 @@ export class AuthService implements OnApplicationBootstrap {
 
   constructor(
     private readonly config: Config,
-    private readonly db: PrismaClient,
+    private readonly models: Models,
     private readonly mailer: MailService,
-    private readonly feature: FeatureManagementService,
-    private readonly quota: QuotaService,
-    private readonly user: UserService
+    private readonly feature: FeatureService
   ) {}
 
   async onApplicationBootstrap() {
     if (this.config.node.dev) {
       try {
         const [email, name, password] = ['dev@affine.pro', 'Dev User', 'dev'];
-        let devUser = await this.user.findUserByEmail(email);
+        let devUser = await this.models.user.getUserByEmail(email);
         if (!devUser) {
-          devUser = await this.user.createUser_without_verification({
+          devUser = await this.models.user.create({
             email,
             name,
             password,
           });
         }
-        await this.quota.switchUserQuota(devUser.id, QuotaType.ProPlanV1);
-        await this.feature.addAdmin(devUser.id);
-        await this.feature.addCopilot(devUser.id);
+        await this.models.userFeature.add(
+          devUser.id,
+          'administrator',
+          'dev user'
+        );
+        await this.models.userFeature.add(
+          devUser.id,
+          'unlimited_copilot',
+          'dev user'
+        );
       } catch {
         // ignore
       }
     }
   }
 
-  canSignIn(email: string) {
-    return this.feature.canEarlyAccess(email);
+  async canSignIn(email: string) {
+    return await this.feature.canEarlyAccess(email);
   }
 
   /**
@@ -88,8 +88,8 @@ export class AuthService implements OnApplicationBootstrap {
       );
     }
 
-    return this.user
-      .createUser_without_verification({
+    return this.models.user
+      .create({
         email,
         password,
       })
@@ -97,24 +97,15 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   async signIn(email: string, password: string): Promise<CurrentUser> {
-    return this.user.signIn(email, password).then(sessionUser);
+    return this.models.user.signIn(email, password).then(sessionUser);
   }
 
   async signOut(sessionId: string, userId?: string) {
     // sign out all users in the session
     if (!userId) {
-      await this.db.session.deleteMany({
-        where: {
-          id: sessionId,
-        },
-      });
+      await this.models.session.deleteSession(sessionId);
     } else {
-      await this.db.userSession.deleteMany({
-        where: {
-          sessionId,
-          userId,
-        },
-      });
+      await this.models.session.deleteUserSession(userId, sessionId);
     }
   }
 
@@ -122,147 +113,80 @@ export class AuthService implements OnApplicationBootstrap {
     sessionId: string,
     userId?: string
   ): Promise<{ user: CurrentUser; session: UserSession } | null> {
-    const userSession = await this.db.userSession.findFirst({
-      where: {
-        sessionId,
-        userId,
-      },
-      select: {
-        id: true,
-        sessionId: true,
-        userId: true,
-        createdAt: true,
-        expiresAt: true,
-        user: true,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
+    const sessions = await this.getUserSessions(sessionId);
 
-    // no such session
+    if (!sessions.length) {
+      return null;
+    }
+
+    let userSession: UserSession | undefined;
+
+    // try read from user provided cookies.userId
+    if (userId) {
+      userSession = sessions.find(s => s.userId === userId);
+    }
+
+    // fallback to the first valid session if user provided userId is invalid
     if (!userSession) {
+      // checked
+      // oxlint-disable-next-line @typescript-eslint/no-non-null-assertion
+      userSession = sessions.at(-1)!;
+    }
+
+    const user = await this.models.user.get(userSession.userId);
+
+    if (!user) {
       return null;
     }
 
-    // user session expired
-    if (userSession.expiresAt && userSession.expiresAt <= new Date()) {
-      return null;
-    }
-
-    return { user: sessionUser(userSession.user), session: userSession };
+    return { user: sessionUser(user), session: userSession };
   }
 
-  async createUserSession(
-    userId: string,
-    sessionId?: string,
-    ttl = this.config.auth.session.ttl
-  ) {
-    // check whether given session is valid
-    if (sessionId) {
-      const session = await this.db.session.findFirst({
-        where: {
-          id: sessionId,
-        },
-      });
+  async getUserSessions(sessionId: string) {
+    return await this.models.session.findUserSessionsBySessionId(sessionId);
+  }
 
-      if (!session) {
-        sessionId = undefined;
-      }
-    }
-
-    if (!sessionId) {
-      const session = await this.createSession();
-      sessionId = session.id;
-    }
-
-    const expiresAt = new Date(Date.now() + ttl * 1000);
-
-    return this.db.userSession.upsert({
-      where: {
-        sessionId_userId: {
-          sessionId,
-          userId,
-        },
-      },
-      update: {
-        expiresAt,
-      },
-      create: {
-        sessionId,
-        userId,
-        expiresAt,
-      },
-    });
+  async createUserSession(userId: string, sessionId?: string, ttl?: number) {
+    return await this.models.session.createOrRefreshUserSession(
+      userId,
+      sessionId,
+      ttl
+    );
   }
 
   async getUserList(sessionId: string) {
-    const sessions = await this.db.userSession.findMany({
-      where: {
-        sessionId,
-        OR: [
-          {
-            expiresAt: null,
-          },
-          {
-            expiresAt: {
-              gt: new Date(),
-            },
-          },
-        ],
-      },
-      include: {
+    const sessions = await this.models.session.findUserSessionsBySessionId(
+      sessionId,
+      {
         user: true,
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
-
+      }
+    );
     return sessions.map(({ user }) => sessionUser(user));
   }
 
   async createSession() {
-    return this.db.session.create({
-      data: {},
-    });
+    return await this.models.session.createSession();
   }
 
   async getSession(sessionId: string) {
-    return this.db.session.findFirst({
-      where: {
-        id: sessionId,
-      },
-    });
+    return await this.models.session.getSession(sessionId);
   }
 
   async refreshUserSessionIfNeeded(
     res: Response,
-    session: UserSession,
-    ttr = this.config.auth.session.ttr
+    userSession: UserSession,
+    ttr?: number
   ): Promise<boolean> {
-    if (
-      session.expiresAt &&
-      session.expiresAt.getTime() - Date.now() > ttr * 1000
-    ) {
+    const newExpiresAt = await this.models.session.refreshUserSessionIfNeeded(
+      userSession,
+      ttr
+    );
+    if (!newExpiresAt) {
       // no need to refresh
       return false;
     }
 
-    const newExpiresAt = new Date(
-      Date.now() + this.config.auth.session.ttl * 1000
-    );
-
-    await this.db.userSession.update({
-      where: {
-        id: session.id,
-      },
-      data: {
-        expiresAt: newExpiresAt,
-      },
-    });
-
-    res.cookie(AuthService.sessionCookieName, session.sessionId, {
+    res.cookie(AuthService.sessionCookieName, userSession.sessionId, {
       expires: newExpiresAt,
       ...this.cookieOptions,
     });
@@ -271,11 +195,7 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   async revokeUserSessions(userId: string) {
-    return this.db.userSession.deleteMany({
-      where: {
-        userId,
-      },
-    });
+    return await this.models.session.deleteUserSession(userId);
   }
 
   getSessionOptionsFromRequest(req: Request) {
@@ -288,7 +208,7 @@ export class AuthService implements OnApplicationBootstrap {
 
     const userId: string | undefined =
       req.cookies[AuthService.userCookieName] ||
-      req.headers[AuthService.userCookieName];
+      req.headers[AuthService.userCookieName.replaceAll('_', '-')];
 
     return {
       sessionId,
@@ -309,6 +229,25 @@ export class AuthService implements OnApplicationBootstrap {
     this.setUserCookie(res, userId);
   }
 
+  async refreshCookies(res: Response, sessionId?: string) {
+    if (sessionId) {
+      const users = await this.getUserList(sessionId);
+      const candidateUser = users.at(-1);
+
+      if (candidateUser) {
+        this.setUserCookie(res, candidateUser.id);
+        return;
+      }
+    }
+
+    this.clearCookies(res);
+  }
+
+  private clearCookies(res: Response<any, Record<string, any>>) {
+    res.clearCookie(AuthService.sessionCookieName);
+    res.clearCookie(AuthService.userCookieName);
+  }
+
   setUserCookie(res: Response, userId: string) {
     res.cookie(AuthService.userCookieName, userId, {
       ...this.cookieOptions,
@@ -319,78 +258,82 @@ export class AuthService implements OnApplicationBootstrap {
     });
   }
 
-  async getUserSessionFromRequest(req: Request) {
+  async getUserSessionFromRequest(req: Request, res?: Response) {
     const { sessionId, userId } = this.getSessionOptionsFromRequest(req);
 
     if (!sessionId) {
       return null;
     }
 
-    return this.getUserSession(sessionId, userId);
+    const session = await this.getUserSession(sessionId, userId);
+
+    if (res) {
+      if (session) {
+        // set user id cookie for fast authentication
+        if (!userId || userId !== session.user.id) {
+          this.setUserCookie(res, session.user.id);
+        }
+      } else if (sessionId) {
+        // clear invalid cookies.session and cookies.userId
+        this.clearCookies(res);
+      }
+    }
+
+    return session;
   }
 
   async changePassword(
     id: string,
     newPassword: string
   ): Promise<Omit<User, 'password'>> {
-    return this.user.updateUser(id, { password: newPassword });
+    return this.models.user.update(id, { password: newPassword });
   }
 
   async changeEmail(
     id: string,
     newEmail: string
   ): Promise<Omit<User, 'password'>> {
-    return this.user.updateUser(id, {
+    return this.models.user.update(id, {
       email: newEmail,
       emailVerifiedAt: new Date(),
     });
   }
 
   async setEmailVerified(id: string) {
-    return await this.user.updateUser(
-      id,
-      { emailVerifiedAt: new Date() },
-      { emailVerifiedAt: true }
-    );
+    return await this.models.user.update(id, {
+      emailVerifiedAt: new Date(),
+    });
   }
 
   async sendChangePasswordEmail(email: string, callbackUrl: string) {
-    return this.mailer.sendChangePasswordEmail(email, callbackUrl);
+    return this.mailer.sendChangePasswordMail(email, { url: callbackUrl });
   }
   async sendSetPasswordEmail(email: string, callbackUrl: string) {
-    return this.mailer.sendSetPasswordEmail(email, callbackUrl);
+    return this.mailer.sendSetPasswordMail(email, { url: callbackUrl });
   }
   async sendChangeEmail(email: string, callbackUrl: string) {
-    return this.mailer.sendChangeEmail(email, callbackUrl);
+    return this.mailer.sendChangeEmailMail(email, { url: callbackUrl });
   }
   async sendVerifyChangeEmail(email: string, callbackUrl: string) {
-    return this.mailer.sendVerifyChangeEmail(email, callbackUrl);
+    return this.mailer.sendVerifyChangeEmail(email, { url: callbackUrl });
   }
   async sendVerifyEmail(email: string, callbackUrl: string) {
-    return this.mailer.sendVerifyEmail(email, callbackUrl);
+    return this.mailer.sendVerifyEmail(email, { url: callbackUrl });
   }
   async sendNotificationChangeEmail(email: string) {
-    return this.mailer.sendNotificationChangeEmail(email);
-  }
-
-  async sendSignInEmail(email: string, link: string, signUp: boolean) {
-    return signUp
-      ? await this.mailer.sendSignUpMail(link, {
-          to: email,
-        })
-      : await this.mailer.sendSignInMail(link, {
-          to: email,
-        });
-  }
-
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
-  async cleanExpiredSessions() {
-    await this.db.userSession.deleteMany({
-      where: {
-        expiresAt: {
-          lte: new Date(),
-        },
-      },
+    return this.mailer.sendNotificationChangeEmail(email, {
+      to: email,
     });
+  }
+
+  async sendSignInEmail(
+    email: string,
+    link: string,
+    otp: string,
+    signUp: boolean
+  ) {
+    return signUp
+      ? await this.mailer.sendSignUpMail(email, { url: link, otp })
+      : await this.mailer.sendSignInMail(email, { url: link, otp });
   }
 }

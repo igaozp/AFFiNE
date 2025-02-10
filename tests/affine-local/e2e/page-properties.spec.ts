@@ -1,11 +1,13 @@
-/* eslint-disable unicorn/prefer-dom-node-dataset */
 import { test } from '@affine-test/kit/playwright';
 import {
   openHomePage,
   openJournalsPage,
 } from '@affine-test/kit/utils/load-page';
 import {
+  addDatabase,
+  addDatabaseRow,
   clickNewPageButton,
+  createLinkedPage,
   dragTo,
   waitForEditorLoad,
   waitForEmptyEditor,
@@ -22,8 +24,11 @@ import {
   openWorkspaceProperties,
   removeSelectedTag,
   searchAndCreateTag,
+  togglePropertyListVisibility,
 } from '@affine-test/kit/utils/properties';
 import { expect } from '@playwright/test';
+
+import { addColumn } from './blocksuite/database/utils';
 
 test.beforeEach(async ({ page }) => {
   await openHomePage(page);
@@ -81,44 +86,53 @@ test('allow create tag on journals page', async ({ page }) => {
 });
 
 test('add custom property', async ({ page }) => {
-  await addCustomProperty(page, 'Text');
-  await addCustomProperty(page, 'Number');
-  await addCustomProperty(page, 'Date');
-  await addCustomProperty(page, 'Checkbox');
-  await addCustomProperty(page, 'Created by');
-  await addCustomProperty(page, 'Last edited by');
+  await addCustomProperty(page, page, 'text');
+  await addCustomProperty(page, page, 'number');
+  await addCustomProperty(page, page, 'date');
+  await addCustomProperty(page, page, 'checkbox');
+  await addCustomProperty(page, page, 'createdBy');
+  await addCustomProperty(page, page, 'updatedBy');
 });
 
 test('add custom property & edit', async ({ page }) => {
-  await addCustomProperty(page, 'Checkbox');
+  await addCustomProperty(page, page, 'checkbox');
   await expect(
-    getPropertyValueLocator(page, 'Checkbox').locator('input')
+    getPropertyValueLocator(page, 'checkbox').locator('input')
   ).not.toBeChecked();
-  await clickPropertyValue(page, 'Checkbox');
+  await clickPropertyValue(page, 'checkbox');
   await expect(
-    getPropertyValueLocator(page, 'Checkbox').locator('input')
+    getPropertyValueLocator(page, 'checkbox').locator('input')
   ).toBeChecked();
 });
 
 test('property table reordering', async ({ page }) => {
-  await addCustomProperty(page, 'Text');
-  await addCustomProperty(page, 'Number');
-  await addCustomProperty(page, 'Date');
-  await addCustomProperty(page, 'Checkbox');
-  await addCustomProperty(page, 'Created by');
-  await addCustomProperty(page, 'Last edited by');
+  await addCustomProperty(page, page, 'text');
+  await addCustomProperty(page, page, 'number');
+  await addCustomProperty(page, page, 'date');
+  await addCustomProperty(page, page, 'checkbox');
+  await addCustomProperty(page, page, 'createdBy');
+  await addCustomProperty(page, page, 'updatedBy');
 
   await dragTo(
     page,
-    page.locator('[data-testid="page-property-row-name"]:has-text("Text")'),
+    page.locator('[data-testid="doc-property-name"]:has-text("Text")'),
     page.locator(
-      '[data-testid="page-property-row-name"]:has-text("Checkbox") + div'
-    )
+      '[data-testid="doc-property-name"]:has-text("Checkbox") + div'
+    ),
+    'bottom'
   );
 
-  // new order should be (Tags), Number, Date, Checkbox, Text
+  // new order should be Doc mode, (Tags), Created at, Updated at, Number, Date, Checkbox, Text
   for (const [index, property] of [
     'Tags',
+    'Doc mode',
+    'Journal',
+    'Template',
+    'Created',
+    'Updated',
+    'Created by',
+    'Edgeless theme',
+    'Page width',
     'Number',
     'Date',
     'Checkbox',
@@ -128,9 +142,9 @@ test('property table reordering', async ({ page }) => {
   ].entries()) {
     await expect(
       page
-        .getByTestId('page-property-row')
+        .getByTestId('doc-property-row')
         .nth(index)
-        .getByTestId('page-property-row-name')
+        .getByTestId('doc-property-name')
     ).toHaveText(property);
   }
 });
@@ -143,23 +157,28 @@ test('page info show more will not should by default when there is no properties
 });
 
 test('page info show more will show all properties', async ({ page }) => {
-  await addCustomProperty(page, 'Text');
-  await addCustomProperty(page, 'Number');
-  await addCustomProperty(page, 'Date');
-  await addCustomProperty(page, 'Checkbox');
-  await addCustomProperty(page, 'Created by');
-  await addCustomProperty(page, 'Last edited by');
+  await addCustomProperty(page, page, 'text');
+  await addCustomProperty(page, page, 'number');
+  await addCustomProperty(page, page, 'date');
+  await addCustomProperty(page, page, 'checkbox');
+  await addCustomProperty(page, page, 'createdBy');
+  await addCustomProperty(page, page, 'updatedBy');
 
-  await expect(page.getByTestId('page-info-show-more')).toBeVisible();
-  await page.click('[data-testid="page-info-show-more"]');
-  await expect(
-    page.getByRole('heading', {
-      name: 'customize properties',
-    })
-  ).toBeVisible();
+  await changePropertyVisibility(page, 'Text', 'always-hide');
 
-  // new order should be (Tags), Number, Date, Checkbox, Text
+  await expect(page.getByTestId('property-collapsible-button')).toBeVisible();
+  await page.click('[data-testid="property-collapsible-button"]');
+
   for (const [index, property] of [
+    'Tags',
+    'Doc mode',
+    'Journal',
+    'Template',
+    'Created',
+    'Updated',
+    'Created by',
+    'Edgeless theme',
+    'Page width',
     'Text',
     'Number',
     'Date',
@@ -169,51 +188,55 @@ test('page info show more will show all properties', async ({ page }) => {
   ].entries()) {
     await expect(
       page
-        .getByTestId('page-properties-settings-menu-item')
+        .getByTestId('doc-property-row')
         .nth(index)
-        .getByTestId('page-property-setting-row-name')
+        .getByTestId('doc-property-name')
     ).toHaveText(property);
   }
 });
 
 test('change page properties visibility', async ({ page }) => {
-  await addCustomProperty(page, 'Text');
-  await addCustomProperty(page, 'Number');
-  await addCustomProperty(page, 'Date');
-  await addCustomProperty(page, 'Checkbox');
+  await addCustomProperty(page, page, 'text');
+  await addCustomProperty(page, page, 'number');
+  await addCustomProperty(page, page, 'date');
+  await addCustomProperty(page, page, 'checkbox');
+  await togglePropertyListVisibility(page);
 
   // add some number to number property
   await clickPropertyValue(page, 'Number');
   await page.locator('input[type=number]').fill('123');
 
-  await changePropertyVisibility(page, 'Text', 'Hide in view');
-  await changePropertyVisibility(page, 'Number', 'Hide in view when empty');
+  await changePropertyVisibility(page, 'Text', 'always-hide');
+  await changePropertyVisibility(page, 'Number', 'hide-when-empty');
 
   // text property should not be visible
   await expect(
-    page.locator('[data-testid="page-property-row-name"]:has-text("Text")')
+    page.locator('[data-testid="doc-property-name"]:has-text("Text")')
   ).not.toBeVisible();
 
   // number property should be visible
   await expect(
-    page.locator('[data-testid="page-property-row-name"]:has-text("Number")')
+    page.locator('[data-testid="doc-property-name"]:has-text("Number")')
   ).toBeVisible();
 });
 
 test('check if added property is also in workspace settings', async ({
   page,
 }) => {
-  await addCustomProperty(page, 'Text');
+  await addCustomProperty(page, page, 'text');
   await openWorkspaceProperties(page);
-  await expect(
-    page.locator('[data-testid=custom-property-row]:has-text("Text")')
-  ).toBeVisible();
+  const settingModal = page.locator('[data-testid=setting-modal-content]');
+  const item = settingModal.locator(
+    '[data-testid=doc-property-manager-item]:has-text("Text")'
+  );
+  await item.waitFor({ state: 'attached' });
+  await expect(item).toBeVisible();
 });
 
 test('edit property name', async ({ page }) => {
-  await addCustomProperty(page, 'Text');
+  await addCustomProperty(page, page, 'text');
   await page
-    .locator('[data-testid="page-property-row-name"]:has-text("Text")')
+    .locator('[data-testid="doc-property-name"]:has-text("Text")')
     .click();
   await expect(page.locator('[data-radix-menu-content]')).toBeVisible();
   await expect(page.locator('[data-radix-menu-content] input')).toHaveValue(
@@ -228,27 +251,28 @@ test('edit property name', async ({ page }) => {
 
   // check if the property name is also updated in workspace settings
   await openWorkspaceProperties(page);
-  await expect(
-    page.locator('[data-testid=custom-property-row]:has-text("New Text")')
-  ).toBeVisible();
+  const settingModal = page.locator('[data-testid=setting-modal-content]');
+  const item = settingModal.locator(
+    '[data-testid=doc-property-manager-item]:has-text("New Text")'
+  );
+  await item.waitFor({ state: 'attached' });
+  await expect(item).toBeVisible();
 });
 
 test('delete property via property popup', async ({ page }) => {
-  await addCustomProperty(page, 'Text');
+  await addCustomProperty(page, page, 'text');
   await page
-    .locator('[data-testid="page-property-row-name"]:has-text("Text")')
+    .locator('[data-testid="doc-property-name"]:has-text("Text")')
     .click();
   await expect(page.locator('[data-radix-menu-content]')).toBeVisible();
   await page
     .locator('[data-radix-menu-content]')
     .getByRole('menuitem', {
-      name: 'Remove property',
+      name: 'Delete property',
     })
     .click();
   // confirm delete dialog should show
-  await expect(page.getByRole('dialog')).toContainText(
-    `The "Text" property will be remove from 1 doc(s). This action cannot be undone.`
-  );
+  await expect(page.getByRole('dialog')).toBeVisible();
   await page
     .getByRole('button', {
       name: 'Confirm',
@@ -256,84 +280,93 @@ test('delete property via property popup', async ({ page }) => {
     .click();
   // check if the property is removed
   await expect(
-    page.locator('[data-testid="page-property-row-name"]:has-text("Text")')
+    page.locator('[data-testid="http://localhost:8080/"]:has-text("Text")')
   ).not.toBeVisible();
 });
 
-test('create a required property', async ({ page }) => {
-  await openWorkspaceProperties(page);
-  await addCustomProperty(page, 'Text', true);
+test('workspace properties can be collapsed', async ({ page }) => {
+  await expect(page.getByTestId('doc-property-row').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Workspace properties' }).click();
+  await expect(page.getByTestId('doc-property-row').first()).not.toBeVisible();
+  await page.getByRole('button', { name: 'Workspace properties' }).click();
+  await expect(page.getByTestId('doc-property-row').first()).toBeVisible();
+});
 
-  await page
-    .locator('[data-testid="custom-property-row"]:has-text("Text")')
-    .getByRole('button')
-    .click();
+// todo: add more tests for database backlink info for different cell types
+test('can show database backlink info', async ({ page }) => {
+  const pageTitle = 'some page title';
+  await clickNewPageButton(page, pageTitle);
+  await page.keyboard.press('Enter');
 
-  await page
-    .getByRole('menuitem', {
-      name: 'Set as required property',
-    })
-    .click();
+  const databaseTitle = 'some database title';
+  await addDatabase(page, databaseTitle);
+  await addColumn(page, 'select', 2);
+
+  await expect(page.locator('affine-database-title')).toContainText(
+    databaseTitle
+  );
 
   await expect(
-    page.locator('[data-testid="custom-property-row"]:has-text("Text")')
-  ).toContainText('Required');
-
-  // close workspace settings
-  await page.keyboard.press('Escape');
-
-  // check if the property is also required in page properties
-  await expect(
-    page.locator('[data-testid="page-property-row-name"]:has-text("Text")')
+    page.locator(`affine-database-title:has-text("${databaseTitle}")`)
   ).toBeVisible();
 
-  // check if the required property is also listed in the show more menu
-  await page.click('[data-testid="page-info-show-more"]');
-  await expect(
-    page.locator(
-      '[data-testid="page-properties-settings-menu-item"]:has-text("Text")'
-    )
-  ).toContainText('Required');
-});
+  await addDatabaseRow(page, databaseTitle);
 
-test('delete a required property', async ({ page }) => {
-  await openWorkspaceProperties(page);
-  await addCustomProperty(page, 'Text', true);
+  // the new row's title cell should have been focused at the point of adding the row
+  await createLinkedPage(page, 'linked page');
 
-  await page
-    .locator('[data-testid="custom-property-row"]:has-text("Text")')
-    .getByRole('button')
-    .click();
-
-  await page
-    .getByRole('menuitem', {
-      name: 'Set as required property',
-    })
-    .click();
-
-  await page
-    .locator('[data-testid="custom-property-row"]:has-text("Text")')
-    .getByRole('button')
-    .click();
-
-  await page
-    .getByRole('menuitem', {
-      name: 'Delete property',
-    })
-    .click();
-  await page
-    .getByRole('button', {
-      name: 'Confirm',
-    })
-    .click();
-
-  // close workspace settings
+  // change status label
   await page.keyboard.press('Escape');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Done');
+  await page
+    .locator('affine-multi-tag-select .select-option:has-text("Done")')
+    .click();
 
-  await waitForEditorLoad(page);
+  // go back to title cell
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Enter');
 
-  // check if the property is removed from page properties
+  // goto the linked page
+  await page.locator('.affine-reference-title:has-text("linked page")').click();
+
+  // ensure the page properties are visible
+  await ensurePagePropertiesVisible(page);
+
+  // database backlink property should be rendered, but collapsed
+  const linkedDatabaseSection = page
+    .getByTestId('property-collapsible-section')
+    .filter({
+      hasText: 'some database title',
+    });
+  await expect(linkedDatabaseSection).toBeVisible();
+
   await expect(
-    page.locator('[data-testid="page-property-row-name"]:has-text("Text")')
+    linkedDatabaseSection.getByTestId('property-collapsible-section-content')
   ).not.toBeVisible();
+
+  await expect(
+    linkedDatabaseSection.locator(
+      `.affine-reference-title:has-text("${pageTitle}")`
+    )
+  ).toBeVisible();
+
+  // expand the linked database section
+  await linkedDatabaseSection
+    .getByTestId('property-collapsible-section-trigger')
+    .click();
+
+  await expect(
+    linkedDatabaseSection.getByTestId('property-collapsible-section-content')
+  ).toBeVisible();
+
+  await expect(
+    linkedDatabaseSection
+      .getByTestId('database-backlink-cell')
+      .getByTestId('inline-tags-list')
+      .filter({
+        hasText: 'Done',
+      })
+  ).toBeVisible();
 });

@@ -1,0 +1,33 @@
+{
+  "name": "@blocksuite/legacy-e2e",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "yarn playwright test"
+  },
+  "dependencies": {
+    "@blocksuite/affine-components": "workspace:*",
+    "@blocksuite/affine-model": "workspace:*",
+    "@blocksuite/affine-shared": "workspace:*",
+    "@blocksuite/block-std": "workspace:*",
+    "@blocksuite/global": "workspace:*",
+    "@blocksuite/inline": "workspace:*",
+    "@blocksuite/presets": "workspace:*",
+    "@blocksuite/store": "workspace:*",
+    "@playwright/test": "=1.50.1",
+    "@toeverything/theme": "^1.1.7"
+  },
+  "bsImport": {
+    "@atlaskit/pragmatic-drag-and-drop/element/adapter": "@atlaskit/pragmatic-drag-and-drop/dist/cjs/entry-point/element/adapter.js",
+    "@atlaskit/pragmatic-drag-and-drop/element/disable-native-drag-preview": "@atlaskit/pragmatic-drag-and-drop/dist/cjs/entry-point/element/disable-native-drag-preview.js",
+    "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview": "@atlaskit/pragmatic-drag-and-drop/dist/cjs/entry-point/element/set-custom-native-drag-preview.js",
+    "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element": "@atlaskit/pragmatic-drag-and-drop-auto-scroll/dist/cjs/entry-point/element.js",
+    "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge": "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/cjs/closest-edge.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/toeverything/blocksuite.git"
+  },
+  "version": "0.19.0"
+}

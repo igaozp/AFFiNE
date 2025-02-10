@@ -1,8 +1,8 @@
-import { appInfo, type TabViewsMetaSchema } from '@affine/electron-api';
-import type { GlobalStateService } from '@toeverything/infra';
 import { createIdentifier, Service } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
 
+import type { DesktopApiService, TabViewsMetaSchema } from '../../desktop-api';
+import type { GlobalStateService } from '../../storage';
 import type { ViewIconName } from '../constants';
 
 export type WorkbenchDefaultState = {
@@ -34,7 +34,10 @@ export class DesktopWorkbenchDefaultState
   extends Service
   implements WorkbenchDefaultState
 {
-  constructor(private readonly globalStateService: GlobalStateService) {
+  constructor(
+    private readonly globalStateService: GlobalStateService,
+    private readonly electronApi: DesktopApiService
+  ) {
     super();
   }
 
@@ -45,8 +48,9 @@ export class DesktopWorkbenchDefaultState
       );
 
     return (
-      tabViewsMeta?.workbenches.find(w => w.id === appInfo?.viewId) ||
-      InMemoryWorkbenchDefaultState
+      tabViewsMeta?.workbenches.find(
+        w => w.id === this.electronApi.appInfo.viewId
+      ) || InMemoryWorkbenchDefaultState
     );
   }
 

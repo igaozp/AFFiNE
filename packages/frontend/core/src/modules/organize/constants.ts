@@ -4,9 +4,9 @@ export const OrganizeSupportType = [
   'collection',
   'tag',
 ] as const;
-export type OrganizeSupportType = 'folder' | 'doc' | 'collection' | 'tag';
+export type OrganizeSupportTypeUnion = 'folder' | 'doc' | 'collection' | 'tag';
 
 export const isOrganizeSupportType = (
   type: string
-): type is OrganizeSupportType =>
-  OrganizeSupportType.includes(type as OrganizeSupportType);
+): type is OrganizeSupportTypeUnion =>
+  OrganizeSupportType.includes(type as OrganizeSupportTypeUnion);

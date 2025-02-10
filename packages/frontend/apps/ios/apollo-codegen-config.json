@@ -1,0 +1,21 @@
+{
+  "schemaNamespace": "AffineGraphQL",
+  "input": {
+    "operationSearchPaths": ["../../../frontend/graphql/src/graphql/**/*.gql"],
+    "schemaSearchPaths": ["../../../backend/server/src/*.gql"]
+  },
+  "output": {
+    "testMocks": {
+      "none": {}
+    },
+    "schemaTypes": {
+      "path": "./App/Packages/AffineGraphQL/",
+      "moduleType": {
+        "swiftPackageManager": {}
+      }
+    },
+    "operations": {
+      "inSchemaModule": {}
+    }
+  }
+}

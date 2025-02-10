@@ -49,48 +49,6 @@ const SubscriptionChangedNotifyFooter = ({
   );
 };
 
-const isDesktop = environment.isElectron;
-export const useUpgradeNotify = () => {
-  const t = useI18n();
-  const prevNotifyIdRef = useRef<string | number | null>(null);
-
-  return useCallback(
-    (link: string) => {
-      prevNotifyIdRef.current && notify.dismiss(prevNotifyIdRef.current);
-      const id = notify(
-        {
-          title: (
-            <span className={notifyHeader}>
-              {t['com.affine.payment.upgrade-success-notify.title']()}
-            </span>
-          ),
-          message: t['com.affine.payment.upgrade-success-notify.content'](),
-          alignMessage: 'title',
-          icon: null,
-          footer: (
-            <SubscriptionChangedNotifyFooter
-              to={link}
-              okText={
-                isDesktop
-                  ? t['com.affine.payment.upgrade-success-notify.ok-client']()
-                  : t['com.affine.payment.upgrade-success-notify.ok-web']()
-              }
-              cancelText={t[
-                'com.affine.payment.upgrade-success-notify.later'
-              ]()}
-              onCancel={() => notify.dismiss(id)}
-              onConfirm={() => notify.dismiss(id)}
-            />
-          ),
-        },
-        { duration: 24 * 60 * 60 * 1000 }
-      );
-      prevNotifyIdRef.current = id;
-    },
-    [t]
-  );
-};
-
 export const useDowngradeNotify = () => {
   const t = useI18n();
   const prevNotifyIdRef = useRef<string | number | null>(null);
@@ -112,7 +70,7 @@ export const useDowngradeNotify = () => {
             <SubscriptionChangedNotifyFooter
               to={link}
               okText={
-                isDesktop
+                BUILD_CONFIG.isElectron
                   ? t['com.affine.payment.downgraded-notify.ok-client']()
                   : t['com.affine.payment.downgraded-notify.ok-web']()
               }

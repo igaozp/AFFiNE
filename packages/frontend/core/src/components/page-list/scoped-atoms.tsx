@@ -1,3 +1,4 @@
+import { shallowEqual } from '@affine/component';
 import { DEFAULT_SORT_KEY } from '@affine/env/constant';
 import { atom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
@@ -10,7 +11,6 @@ import type {
   MetaRecord,
   VirtualizedListProps,
 } from './types';
-import { shallowEqual } from './utils';
 
 // for ease of use in the component tree
 // note: must use selectAtom to access this atom for efficiency
@@ -136,12 +136,12 @@ const defaultSortingFn: SorterConfig<MetaRecord<ListItem>>['sortingFn'] = (
   return 0;
 };
 
-const validKeys: Array<keyof MetaRecord<ListItem>> = [
+const validKeys: Set<keyof MetaRecord<ListItem>> = new Set([
   'id',
   'title',
   'createDate',
   'updatedDate',
-];
+]);
 
 const sorterStateAtom = atom<SorterConfig<MetaRecord<ListItem>>>({
   key: DEFAULT_SORT_KEY,
@@ -175,7 +175,7 @@ export const sorterAtom = atom(
   },
   (_get, set, { newSortKey }: { newSortKey: keyof MetaRecord<ListItem> }) => {
     set(sorterStateAtom, sorterState => {
-      if (validKeys.includes(newSortKey)) {
+      if (validKeys.has(newSortKey)) {
         return {
           ...sorterState,
           key: newSortKey,

@@ -1,11 +1,11 @@
-import { SingleSelectSelectSolidIcon } from '@blocksuite/icons/rc';
+import { SingleSelectCheckSolidIcon } from '@blocksuite/icons/rc';
 import type { StoryFn } from '@storybook/react';
 import { cssVar } from '@toeverything/theme';
 import { type HTMLAttributes, useState } from 'react';
 
 import { Button } from '../button';
 import { Modal } from '../modal';
-import { NotificationCenter, notify } from './notification-center';
+import { NotificationCenter, notify } from '.';
 import type {
   NotificationCustomRendererProps,
   NotificationStyle,
@@ -90,11 +90,11 @@ export const CustomIcon: StoryFn = () => {
     { label: 'No icon', icon: null },
     {
       label: 'SingleSelectIcon',
-      icon: <SingleSelectSelectSolidIcon />,
+      icon: <SingleSelectCheckSolidIcon />,
     },
     {
       label: 'Icon Color',
-      icon: <SingleSelectSelectSolidIcon color={cssVar('successColor')} />,
+      icon: <SingleSelectCheckSolidIcon color={cssVar('successColor')} />,
     },
   ];
 
@@ -238,6 +238,83 @@ export const ZIndexWithModal: StoryFn = () => {
           Notify
         </Button>
       </Modal>
+    </Root>
+  );
+};
+
+export const DifferentSize: StoryFn = () => {
+  const openTiny = () => {
+    notify({ title: 'Tiny' }, { duration: 60000 });
+  };
+  const openNormal = () =>
+    notify(
+      {
+        title: 'Normal Size',
+        message: 'With basic title and one line message',
+      },
+      { duration: 60000 }
+    );
+
+  const openLarge = () => {
+    notify(
+      {
+        title: 'Large Size',
+        message: (
+          <div>
+            <h1>Large Size</h1>
+            <p>
+              With long title and long message to test the size of the
+              notification; The content may be multiline and the card will be
+              larger.
+            </p>
+          </div>
+        ),
+      },
+      { duration: 60000 }
+    );
+  };
+  const openWithThumb = () => {
+    notify(
+      {
+        thumb: (
+          <div
+            style={{
+              height: 100,
+              background: 'rgba(100,100,100,.05)',
+              lineHeight: '100px',
+              textAlign: 'center',
+              borderTopLeftRadius: 'inherit',
+              borderTopRightRadius: 'inherit',
+            }}
+          >
+            Hack thumb
+          </div>
+        ),
+        title: 'Card with thumb',
+        message: 'With basic title and one line message',
+      },
+      { duration: 60000 }
+    );
+  };
+  const openWithFooter = () => {
+    notify(
+      {
+        title: 'With footer',
+        message: 'With basic title and one line message',
+        footer: (
+          <Button onClick={() => console.log('clicked')}>Click me</Button>
+        ),
+      },
+      { duration: 60000 }
+    );
+  };
+  return (
+    <Root style={{ display: 'flex', gap: 8 }}>
+      <Button onClick={openTiny}>Open Tiny</Button>
+      <Button onClick={openNormal}>Open Normal</Button>
+      <Button onClick={openLarge}>Open Large</Button>
+      <Button onClick={openWithThumb}>Open with thumb</Button>
+      <Button onClick={openWithFooter}>Open with footer</Button>
     </Root>
   );
 };

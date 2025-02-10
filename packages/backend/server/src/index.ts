@@ -5,10 +5,10 @@ import { Logger } from '@nestjs/common';
 import { omit } from 'lodash-es';
 
 import { createApp } from './app';
-import { URLHelper } from './fundamentals';
+import { URLHelper } from './base';
 
 const app = await createApp();
-const listeningHost = AFFiNE.deploy ? '0.0.0.0' : 'localhost';
+const listeningHost = '0.0.0.0';
 await app.listen(AFFiNE.server.port, listeningHost);
 const url = app.get(URLHelper);
 

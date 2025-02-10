@@ -1,18 +1,17 @@
 import {
   AnimatedDeleteIcon,
+  toast,
   useConfirmModal,
   useDropTarget,
 } from '@affine/component';
+import { MenuLinkItem } from '@affine/core/modules/app-sidebar/views';
+import { DocsService } from '@affine/core/modules/doc';
+import { GlobalContextService } from '@affine/core/modules/global-context';
+import { GuardService } from '@affine/core/modules/permissions';
 import type { AffineDNDData } from '@affine/core/types/dnd';
+import { UserFriendlyError } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import {
-  DocsService,
-  GlobalContextService,
-  useLiveData,
-  useService,
-} from '@toeverything/infra';
-
-import { MenuLinkItem } from '../app-sidebar';
+import { useLiveData, useService } from '@toeverything/infra';
 
 export const TrashButton = () => {
   const t = useI18n();
@@ -20,6 +19,7 @@ export const TrashButton = () => {
   const { openConfirmModal } = useConfirmModal();
   const globalContextService = useService(GlobalContextService);
   const trashActive = useLiveData(globalContextService.globalContext.isTrash.$);
+  const guardService = useService(GuardService);
 
   const { dropTargetRef, draggedOver } = useDropTarget<AffineDNDData>(
     () => ({
@@ -45,15 +45,32 @@ export const TrashButton = () => {
               confirmButtonOptions: {
                 variant: 'error',
               },
-              onConfirm() {
-                docRecord.moveToTrash();
+              async onConfirm() {
+                try {
+                  const canTrash = await guardService.can(
+                    'Doc_Trash',
+                    docRecord.id
+                  );
+                  if (!canTrash) {
+                    toast(t['com.affine.no-permission']());
+                    return;
+                  }
+                  docRecord.moveToTrash();
+                } catch (error) {
+                  console.error(error);
+                  const userFriendlyError =
+                    UserFriendlyError.fromAnyError(error);
+                  toast(
+                    t[`error.${userFriendlyError.name}`](userFriendlyError.data)
+                  );
+                }
               },
             });
           }
         }
       },
     }),
-    [docsService.list, openConfirmModal, t]
+    [docsService.list, guardService, openConfirmModal, t]
   );
 
   return (

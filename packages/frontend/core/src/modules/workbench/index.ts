@@ -1,6 +1,7 @@
 export { View as WorkbenchView } from './entities/view';
 export { Workbench } from './entities/workbench';
 export { ViewScope } from './scopes/view';
+export { ViewService } from './services/view';
 export { WorkbenchService } from './services/workbench';
 export { useBindWorkbenchToBrowserRouter } from './view/browser-adapter';
 export { useIsActiveView } from './view/use-is-active-view';
@@ -10,12 +11,12 @@ export type { WorkbenchLinkProps } from './view/workbench-link';
 export { WorkbenchLink } from './view/workbench-link';
 export { WorkbenchRoot } from './view/workbench-root';
 
-import {
-  type Framework,
-  GlobalStateService,
-  WorkspaceScope,
-} from '@toeverything/infra';
+import { type Framework } from '@toeverything/infra';
 
+import { DesktopApiService } from '../desktop-api';
+import { PeekViewService } from '../peek-view';
+import { GlobalStateService } from '../storage';
+import { WorkspaceScope } from '../workspace';
 import { SidebarTab } from './entities/sidebar-tab';
 import { View } from './entities/view';
 import { Workbench } from './entities/workbench';
@@ -59,7 +60,14 @@ export function configureDesktopWorkbenchModule(services: Framework) {
     .scope(WorkspaceScope)
     .impl(WorkbenchDefaultState, DesktopWorkbenchDefaultState, [
       GlobalStateService,
+      DesktopApiService,
     ])
-    .impl(WorkbenchNewTabHandler, () => DesktopWorkbenchNewTabHandler)
-    .service(DesktopStateSynchronizer, [WorkbenchService]);
+    .impl(WorkbenchNewTabHandler, DesktopWorkbenchNewTabHandler, [
+      DesktopApiService,
+    ])
+    .service(DesktopStateSynchronizer, [
+      WorkbenchService,
+      DesktopApiService,
+      PeekViewService,
+    ]);
 }

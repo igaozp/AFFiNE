@@ -1,0 +1,18 @@
+plugins {
+    alias libs.plugins.jetbrains.kotlin.jvm
+    alias libs.plugins.apollo.android
+}
+
+dependencies {
+    implementation libs.apollo.api
+}
+
+apollo {
+    service("affine") {
+        packageName.set("com.affine.pro.graphql")
+        introspection {
+            endpointUrl.set("https://app.affine.pro/graphql")
+            schemaFile.set(file("src/main/graphql/affine/schema.graphqls"))
+        }
+    }
+}

@@ -1,7 +1,8 @@
 import { ConfirmModal } from '@affine/component/ui/modal';
-import { openQuotaModalAtom } from '@affine/core/atoms';
+import { openQuotaModalAtom } from '@affine/core/components/atoms';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
-import { useService, WorkspaceService } from '@toeverything/infra';
+import { useService } from '@toeverything/infra';
 import { useAtom } from 'jotai';
 import { useCallback, useEffect } from 'react';
 
@@ -15,13 +16,13 @@ export const LocalQuotaModal = () => {
   }, [setOpen]);
 
   useEffect(() => {
-    const disposable = currentWorkspace.engine.blob.onAbortLargeBlob.on(() => {
+    const disposable = currentWorkspace.engine.blob.onReachedMaxBlobSize(() => {
       setOpen(true);
     });
     return () => {
-      disposable?.dispose();
+      disposable();
     };
-  }, [currentWorkspace.engine.blob.onAbortLargeBlob, setOpen]);
+  }, [currentWorkspace.engine.blob, setOpen]);
 
   return (
     <ConfirmModal

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { Config, URLHelper } from '../../../fundamentals';
+import { Config, URLHelper } from '../../../base';
 import { OAuthProviderName } from '../config';
 import { AutoRegisteredOAuthProvider } from '../register';
 

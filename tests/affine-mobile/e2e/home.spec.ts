@@ -13,7 +13,8 @@ test('app tabs is visible', async ({ page }) => {
 
   await expect(tabs.getByRole('tab', { name: 'home' })).toBeVisible();
   await expect(tabs.getByRole('tab', { name: 'all' })).toBeVisible();
-  await expect(tabs.getByRole('tab', { name: 'search' })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: 'journal' })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: 'new' })).toBeVisible();
 });
 
 test('recent docs', async ({ page }) => {
@@ -48,16 +49,4 @@ test('all tab', async ({ page }) => {
 
   const todayDocs = page.getByTestId('doc-card');
   expect(await todayDocs.count()).toBeGreaterThan(0);
-});
-
-test('search tab', async ({ page }) => {
-  const searchTab = page
-    .locator('#app-tabs')
-    .getByRole('tab', { name: 'search' });
-  await expect(searchTab).toBeVisible();
-
-  await searchTab.click();
-
-  const searchInput = page.getByTestId('search-header').getByRole('textbox');
-  await expect(searchInput).toBeVisible();
 });

@@ -73,6 +73,8 @@ spec:
             value: "{{ .Values.service.port }}"
           - name: AFFINE_SERVER_HOST
             value: "{{ .Values.app.host }}"
+          - name: DOC_SERVICE_ENDPOINT
+            value: "http://{{ .Values.global.docService.name }}:{{ .Values.global.docService.port }}"
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

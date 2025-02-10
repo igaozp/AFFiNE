@@ -4,7 +4,8 @@
   "types": "./__all.d.ts",
   "type": "module",
   "dependencies": {
-    "@affine/env": "workspace:*"
+    "@affine/env": "workspace:*",
+    "@blocksuite/affine": "workspace:*"
   },
-  "version": "0.16.0"
+  "version": "0.19.0"
 }

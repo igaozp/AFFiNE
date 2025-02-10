@@ -4,7 +4,6 @@ import {
   IconButton,
   toast,
 } from '@affine/component';
-import { track } from '@affine/core/mixpanel';
 import { ExplorerTreeRoot } from '@affine/core/modules/explorer/views/tree';
 import {
   type FolderNode,
@@ -12,7 +11,8 @@ import {
 } from '@affine/core/modules/organize';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { useI18n } from '@affine/i18n';
-import { PlusIcon } from '@blocksuite/icons/rc';
+import { track } from '@affine/track';
+import { AddOrganizeIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useServices } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -86,7 +86,7 @@ export const ExplorerOrganize = () => {
       const entity = data.source.data.entity;
       if (!entity) return;
       const { type, id } = entity;
-      if (type === 'folder') return;
+      if (type !== 'doc' && type !== 'tag' && type !== 'collection') return;
 
       const folder = newFolder$.value;
       if (!folder) return;
@@ -116,7 +116,7 @@ export const ExplorerOrganize = () => {
             'com.affine.rootAppSidebar.explorer.organize-section-add-tooltip'
           ]()}
         >
-          <PlusIcon />
+          <AddOrganizeIcon />
         </IconButton>
       }
     >

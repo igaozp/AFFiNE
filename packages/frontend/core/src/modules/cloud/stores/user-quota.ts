@@ -23,7 +23,7 @@ export class UserQuotaStore extends Store {
     return {
       userId: data.currentUser.id,
       quota: data.currentUser.quota,
-      used: data.collectAllBlobSizes.size,
+      used: data.currentUser.quotaUsage.storageQuota,
     };
   }
 }

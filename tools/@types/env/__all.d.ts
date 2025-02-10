@@ -1,24 +1,7 @@
-import type { Environment, RuntimeConfig } from '@affine/env/global';
+import '@affine/env/constant';
+import '@blocksuite/affine/global/types'
 
-declare global {
-  // eslint-disable-next-line no-var
-  var process: {
-    env: Record<string, string>;
-  };
-  // eslint-disable-next-line no-var
-  var environment: Environment;
-  // eslint-disable-next-line no-var
-  var runtimeConfig: RuntimeConfig;
-  // eslint-disable-next-line no-var
-  var $AFFINE_SETUP: boolean | undefined;
-  /**
-   * Inject by https://www.npmjs.com/package/@sentry/webpack-plugin
-   */
-  // eslint-disable-next-line no-var
-  var SENTRY_RELEASE: { id: string } | undefined;
-}
-
-declare module '@blocksuite/store' {
+declare module '@blocksuite/affine/store' {
   interface DocMeta {
     /**
      * @deprecated
@@ -31,4 +14,38 @@ declare module '@blocksuite/store' {
     // todo: support `number` in the future
     isPublic?: boolean;
   }
+}
+
+
+declare global {
+
+declare type Environment = {
+  // Variant
+  isSelfHosted: boolean;
+
+  // Device
+  isLinux: boolean;
+  isMacOs: boolean;
+  isIOS: boolean;
+  isSafari: boolean;
+  isWindows: boolean;
+  isFireFox: boolean;
+  isMobile: boolean;
+  isChrome: boolean;
+  isPwa: boolean;
+  chromeVersion?: number;
+
+  // runtime configs
+  publicPath: string;
+};
+
+  var process: {
+    env: Record<string, string>;
+  };
+  var environment: Environment;
+  var $AFFINE_SETUP: boolean | undefined;
+  /**
+   * Inject by https://www.npmjs.com/package/@sentry/webpack-plugin
+   */
+  var SENTRY_RELEASE: { id: string } | undefined;
 }

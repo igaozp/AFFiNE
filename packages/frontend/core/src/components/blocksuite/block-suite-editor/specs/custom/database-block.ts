@@ -2,30 +2,26 @@ import { notify } from '@affine/component';
 import {
   generateUrl,
   type UseSharingUrl,
-} from '@affine/core/hooks/affine/use-share-url';
-import { track } from '@affine/core/mixpanel';
-import { getAffineCloudBaseUrl } from '@affine/core/modules/cloud/services/fetch';
+} from '@affine/core/components/hooks/affine/use-share-url';
+import { ServerService } from '@affine/core/modules/cloud';
 import { EditorService } from '@affine/core/modules/editor';
+import { copyLinkToBlockStdScopeClipboard } from '@affine/core/utils/clipboard';
 import { I18n } from '@affine/i18n';
-import type { DatabaseBlockModel, MenuOptions } from '@blocksuite/blocks';
+import { track } from '@affine/track';
+import type {
+  DatabaseBlockModel,
+  MenuOptions,
+} from '@blocksuite/affine/blocks';
+import { menu } from '@blocksuite/affine/blocks';
 import { LinkIcon } from '@blocksuite/icons/lit';
 import type { FrameworkProvider } from '@toeverything/infra';
-import type { TemplateResult } from 'lit';
 
 export function createDatabaseOptionsConfig(framework: FrameworkProvider) {
   return {
     configure: (model: DatabaseBlockModel, options: MenuOptions) => {
       const items = options.items;
 
-      const copyIndex = items.findIndex(
-        item => item.type === 'action' && item.name === 'Copy'
-      );
-
-      items.splice(
-        copyIndex + 1,
-        0,
-        createCopyLinkToBlockMenuItem(framework, model)
-      );
+      items.splice(2, 0, createCopyLinkToBlockMenuItem(framework, model));
 
       return options;
     },
@@ -35,26 +31,17 @@ export function createDatabaseOptionsConfig(framework: FrameworkProvider) {
 function createCopyLinkToBlockMenuItem(
   framework: FrameworkProvider,
   model: DatabaseBlockModel
-): {
-  type: 'action';
-  name: string;
-  icon?: TemplateResult<1>;
-  hide?: () => boolean;
-  select: () => void;
-} {
-  return {
-    type: 'action',
+) {
+  return menu.action({
     name: 'Copy link to block',
-    icon: LinkIcon({ width: '20', height: '20' }),
+    prefix: LinkIcon({ width: '20', height: '20' }),
     hide: () => {
       const { editor } = framework.get(EditorService);
       const mode = editor.mode$.value;
       return mode === 'edgeless';
     },
     select: () => {
-      const baseUrl = getAffineCloudBaseUrl();
-      if (!baseUrl) return;
-
+      const serverService = framework.get(ServerService);
       const pageId = model.doc.id;
       const { editor } = framework.get(EditorService);
       const mode = editor.mode$.value;
@@ -65,29 +52,28 @@ function createCopyLinkToBlockMenuItem(
       const options: UseSharingUrl = {
         workspaceId,
         pageId,
-        shareMode: mode,
+        mode,
         blockIds: [model.id],
       };
 
-      const str = generateUrl(options);
+      const str = generateUrl({
+        ...options,
+        baseUrl: serverService.server.baseUrl,
+      });
       if (!str) return;
 
       const type = model.flavour;
-      const title = editor.doc.title$.value;
       const page = editor.editorContainer$.value;
 
-      page?.host?.std.clipboard
-        .writeToClipboard(items => {
-          items['text/plain'] = str;
-          // wrap a link
-          items['text/html'] = `<a title="${title}" href="${str}">${title}</a>`;
-          return items;
-        })
-        .then(() => {
-          track.doc.editor.toolbar.copyBlockToLink({ type });
+      copyLinkToBlockStdScopeClipboard(str, page?.host?.std.clipboard)
+        .then(success => {
+          if (!success) return;
+
           notify.success({ title: I18n['Copied link to clipboard']() });
         })
         .catch(console.error);
+
+      track.doc.editor.toolbar.copyBlockToLink({ type });
     },
-  };
+  });
 }

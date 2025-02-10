@@ -1,108 +1,61 @@
-import type { ReferenceInfo } from '@blocksuite/affine-model';
-import type { DocMode } from '@blocksuite/blocks';
+import { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import {
+  appendParagraphCommand,
+  type DocMode,
+  focusBlockEnd,
+  getLastNoteBlock,
+} from '@blocksuite/affine/blocks';
 import type {
   AffineEditorContainer,
   DocTitle,
   EdgelessEditor,
   PageEditor,
-} from '@blocksuite/presets';
-import { type Doc, Slot } from '@blocksuite/store';
+} from '@blocksuite/affine/presets';
+import { type Store } from '@blocksuite/affine/store';
+import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import type React from 'react';
 import {
   forwardRef,
   useCallback,
   useImperativeHandle,
-  useLayoutEffect,
   useMemo,
   useRef,
 } from 'react';
 
+import type { DefaultOpenProperty } from '../../doc-properties';
 import { BlocksuiteDocEditor, BlocksuiteEdgelessEditor } from './lit-adaper';
 import * as styles from './styles.css';
 
-// copy forwardSlot from blocksuite, but it seems we need to dispose the pipe
-// after the component is unmounted right?
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function forwardSlot<T extends Record<string, Slot<any>>>(
-  from: T,
-  to: Partial<T>
-) {
-  Object.entries(from).forEach(([key, slot]) => {
-    const target = to[key];
-    if (target) {
-      slot.pipe(target);
-    }
-  });
-}
-
 interface BlocksuiteEditorContainerProps {
-  page: Doc;
+  page: Store;
   mode: DocMode;
   shared?: boolean;
+  readonly?: boolean;
   className?: string;
+  defaultOpenProperty?: DefaultOpenProperty;
   style?: React.CSSProperties;
 }
-
-// mimic the interface of the webcomponent and expose slots & host
-type BlocksuiteEditorContainerRef = Pick<
-  (typeof AffineEditorContainer)['prototype'],
-  'mode' | 'doc' | 'slots' | 'host'
-> &
-  HTMLDivElement;
 
 export const BlocksuiteEditorContainer = forwardRef<
   AffineEditorContainer,
   BlocksuiteEditorContainerProps
 >(function AffineEditorContainer(
-  { page, mode, className, style, shared },
+  { page, mode, className, style, shared, readonly, defaultOpenProperty },
   ref
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<PageEditor>(null);
   const docTitleRef = useRef<DocTitle>(null);
   const edgelessRef = useRef<EdgelessEditor>(null);
-
-  const slots: BlocksuiteEditorContainerRef['slots'] = useMemo(() => {
-    return {
-      docLinkClicked: new Slot<ReferenceInfo>(),
-      editorModeSwitched: new Slot(),
-      docUpdated: new Slot(),
-      tagClicked: new Slot(),
-    };
-  }, []);
-
-  // forward the slot to the webcomponent
-  useLayoutEffect(() => {
-    requestAnimationFrame(() => {
-      const docPage = rootRef.current?.querySelector('affine-page-root');
-      const edgelessPage = rootRef.current?.querySelector(
-        'affine-edgeless-root'
-      );
-      if (docPage) {
-        forwardSlot(docPage.slots, slots);
-      }
-
-      if (edgelessPage) {
-        forwardSlot(edgelessPage.slots, slots);
-      }
-    });
-  }, [page, slots]);
-
-  useLayoutEffect(() => {
-    slots.docUpdated.emit({ newDocId: page.id });
-  }, [page, slots.docUpdated]);
-
-  useLayoutEffect(() => {
-    slots.editorModeSwitched.emit(mode);
-  }, [mode, slots.editorModeSwitched]);
+  const featureFlags = useService(FeatureFlagService).flags;
+  const enableEditorRTL = useLiveData(featureFlags.enable_editor_rtl.$);
 
   /**
    * mimic an AffineEditorContainer using proxy
    */
   const affineEditorContainerProxy = useMemo(() => {
     const api = {
-      slots,
       get page() {
         return page;
       },
@@ -131,6 +84,9 @@ export const BlocksuiteEditorContainer = forwardRef<
       get origin() {
         return rootRef.current;
       },
+      get std() {
+        return mode === 'page' ? docRef.current?.std : edgelessRef.current?.std;
+      },
     };
 
     const proxy = new Proxy(api, {
@@ -157,23 +113,41 @@ export const BlocksuiteEditorContainer = forwardRef<
     }) as unknown as AffineEditorContainer & { origin: HTMLDivElement };
 
     return proxy;
-  }, [mode, page, slots]);
+  }, [mode, page]);
 
   useImperativeHandle(ref, () => affineEditorContainerProxy, [
     affineEditorContainerProxy,
   ]);
 
   const handleClickPageModeBlank = useCallback(() => {
-    if (shared || page.readonly) return;
-    affineEditorContainerProxy.host?.std.command.exec(
-      'appendParagraph' as never,
-      {}
-    );
-  }, [affineEditorContainerProxy, page, shared]);
+    if (shared || readonly || page.readonly) return;
+    const std = affineEditorContainerProxy.host?.std;
+    if (!std) {
+      return;
+    }
+    const note = getLastNoteBlock(page);
+    if (note) {
+      const lastBlock = note.lastChild();
+      if (
+        lastBlock &&
+        lastBlock.flavour === 'affine:paragraph' &&
+        lastBlock.text?.length === 0
+      ) {
+        const focusBlock = std.view.getBlock(lastBlock.id) ?? undefined;
+        std.command.exec(focusBlockEnd, {
+          focusBlock,
+        });
+        return;
+      }
+    }
+
+    std.command.exec(appendParagraphCommand);
+  }, [affineEditorContainerProxy.host?.std, page, readonly, shared]);
 
   return (
     <div
       data-testid={`editor-${page.id}`}
+      dir={enableEditorRTL ? 'rtl' : 'ltr'}
       className={clsx(
         `editor-wrapper ${mode}-mode`,
         styles.docEditorRoot,
@@ -188,8 +162,10 @@ export const BlocksuiteEditorContainer = forwardRef<
           shared={shared}
           page={page}
           ref={docRef}
+          readonly={readonly}
           titleRef={docTitleRef}
           onClickBlank={handleClickPageModeBlank}
+          defaultOpenProperty={defaultOpenProperty}
         />
       ) : (
         <BlocksuiteEdgelessEditor

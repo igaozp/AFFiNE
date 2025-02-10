@@ -1,24 +1,25 @@
-import { apis, events } from '@affine/electron-api';
 import { LiveData, Service } from '@toeverything/infra';
 import { Observable } from 'rxjs';
 
+import type { ClientEvents, DesktopApiService } from '../../desktop-api';
+
 export type TabStatus = Parameters<
-  Parameters<NonNullable<typeof events>['ui']['onTabsStatusChange']>[0]
+  Parameters<NonNullable<ClientEvents>['ui']['onTabsStatusChange']>[0]
 >[0][number];
 
 export class AppTabsHeaderService extends Service {
-  constructor() {
+  constructor(private readonly desktopApi: DesktopApiService) {
     super();
   }
 
   tabsStatus$ = LiveData.from<TabStatus[]>(
     new Observable(subscriber => {
       let unsub: (() => void) | undefined;
-      apis?.ui
+      this.desktopApi.handler.ui
         .getTabsStatus()
         .then(tabs => {
           subscriber.next(tabs);
-          unsub = events?.ui.onTabsStatusChange(tabs => {
+          unsub = this.desktopApi.events.ui.onTabsStatusChange(tabs => {
             subscriber.next(tabs);
           });
         })
@@ -31,20 +32,20 @@ export class AppTabsHeaderService extends Service {
     []
   );
 
-  showContextMenu = apis?.ui.showTabContextMenu;
+  showContextMenu = this.desktopApi.handler.ui.showTabContextMenu;
 
-  activateView = apis?.ui.activateView;
+  activateView = this.desktopApi.handler.ui.activateView;
 
-  closeTab = apis?.ui.closeTab;
+  closeTab = this.desktopApi.handler.ui.closeTab;
 
-  onAddTab = apis?.ui.addTab;
+  onAddTab = this.desktopApi.handler.ui.addTab;
 
   onAddDocTab = async (
     docId: string,
     targetTabId?: string,
     edge?: 'left' | 'right'
   ) => {
-    await apis?.ui.addTab({
+    await this.desktopApi.handler.ui.addTab({
       view: {
         path: {
           pathname: '/' + docId,
@@ -60,7 +61,7 @@ export class AppTabsHeaderService extends Service {
     targetTabId?: string,
     edge?: 'left' | 'right'
   ) => {
-    await apis?.ui.addTab({
+    await this.desktopApi.handler.ui.addTab({
       view: {
         path: {
           pathname: '/tag/' + tagId,
@@ -76,7 +77,7 @@ export class AppTabsHeaderService extends Service {
     targetTabId?: string,
     edge?: 'left' | 'right'
   ) => {
-    await apis?.ui.addTab({
+    await this.desktopApi.handler.ui.addTab({
       view: {
         path: {
           pathname: '/collection/' + collectionId,
@@ -87,7 +88,7 @@ export class AppTabsHeaderService extends Service {
     });
   };
 
-  onToggleRightSidebar = apis?.ui.toggleRightSidebar;
+  onToggleRightSidebar = this.desktopApi.handler.ui.toggleRightSidebar;
 
-  moveTab = apis?.ui.moveTab;
+  moveTab = this.desktopApi.handler.ui.moveTab;
 }

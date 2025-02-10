@@ -4,8 +4,6 @@ query invoices($take: Int!, $skip: Int!) {
     invoices(take: $take, skip: $skip) {
       id
       status
-      plan
-      recurring
       currency
       amount
       reason

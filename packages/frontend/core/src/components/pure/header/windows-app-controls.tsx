@@ -1,36 +1,8 @@
-import { apis, events } from '@affine/electron-api';
-import { useAtomValue } from 'jotai';
-import { atomWithObservable } from 'jotai/utils';
-import { useCallback } from 'react';
-import { combineLatest, map, Observable } from 'rxjs';
+import { DesktopApiService } from '@affine/core/modules/desktop-api';
+import { useService } from '@toeverything/infra';
+import { useCallback, useEffect, useState } from 'react';
 
 import * as style from './style.css';
-
-const maximized$ = new Observable<boolean>(subscriber => {
-  subscriber.next(false);
-  if (events) {
-    return events.ui.onMaximized(res => {
-      subscriber.next(res);
-    });
-  }
-  return () => {};
-});
-
-const fullscreen$ = new Observable<boolean>(subscriber => {
-  subscriber.next(false);
-  if (events) {
-    return events.ui.onFullScreen(res => {
-      subscriber.next(res);
-    });
-  }
-  return () => {};
-});
-
-const maximizedAtom = atomWithObservable(() => {
-  return combineLatest([maximized$, fullscreen$]).pipe(
-    map(([maximized, fullscreen]) => maximized || fullscreen)
-  );
-});
 
 const minimizeSVG = (
   <svg
@@ -93,23 +65,34 @@ const unmaximizedSVG = (
 );
 
 export const WindowsAppControls = () => {
-  const handleMinimizeApp = useCallback(() => {
-    apis?.ui.handleMinimizeApp().catch(err => {
-      console.error(err);
-    });
-  }, []);
-  const handleMaximizeApp = useCallback(() => {
-    apis?.ui.handleMaximizeApp().catch(err => {
-      console.error(err);
-    });
-  }, []);
-  const handleCloseApp = useCallback(() => {
-    apis?.ui.handleCloseApp().catch(err => {
-      console.error(err);
-    });
-  }, []);
+  const desktopApi = useService(DesktopApiService);
 
-  const maximized = useAtomValue(maximizedAtom);
+  const handleMinimizeApp = useCallback(() => {
+    desktopApi.handler.ui.handleMinimizeApp().catch(err => {
+      console.error(err);
+    });
+  }, [desktopApi.handler.ui]);
+  const handleMaximizeApp = useCallback(() => {
+    desktopApi.handler.ui.handleMaximizeApp().catch(err => {
+      console.error(err);
+    });
+  }, [desktopApi.handler.ui]);
+  const handleCloseApp = useCallback(() => {
+    desktopApi.handler.ui.handleCloseApp().catch(err => {
+      console.error(err);
+    });
+  }, [desktopApi.handler.ui]);
+
+  const [maximized, setMaximized] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    return desktopApi.events.ui.onMaximized(setMaximized);
+  }, [desktopApi.events.ui]);
+
+  useEffect(() => {
+    return desktopApi.events.ui.onFullScreen(setFullscreen);
+  }, [desktopApi.events.ui]);
 
   return (
     <div
@@ -128,7 +111,7 @@ export const WindowsAppControls = () => {
         className={style.windowAppControl}
         onClick={handleMaximizeApp}
       >
-        {maximized ? unmaximizedSVG : maximizeSVG}
+        {maximized || fullscreen ? unmaximizedSVG : maximizeSVG}
       </button>
       <button
         data-type="close"

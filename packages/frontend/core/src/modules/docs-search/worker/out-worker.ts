@@ -29,6 +29,7 @@ export async function createWorker(abort: AbortSignal) {
           }
         });
         worker.postMessage({ type: 'init', msgId: 0 } as WorkerIngoingMessage);
+
         setTimeout(() => {
           reject('timeout');
         }, 1000 * 30 /* 30 sec */);
@@ -95,8 +96,8 @@ export async function createWorker(abort: AbortSignal) {
       });
     },
     dispose: () => {
-      worker.terminate();
       terminateAbort.abort(MANUALLY_STOP);
+      worker.terminate();
     },
   };
 }

@@ -65,7 +65,15 @@
                 },
                 "background": "--affine-palette-transparent",
                 "xywh": "[-509.7051213118268,-469.55707155770506,1924.0508676236536,1089.1141431154101]",
-                "index": "a0"
+                "index": "a0",
+                "childElementIds": {
+                  "TJhFxmm-4S": true,
+                  "9t3Ah0wozZ": true,
+                  "LzI7P4hb4X": true,
+                  "aHToM_8I3t": true,
+                  "mZBqMOupoM": true,
+                  "DPQCANC2uz": true
+                }
               },
               "children": []
             }

@@ -24,7 +24,7 @@ test('image preview should be shown', async ({ page }) => {
   const title = getBlockSuiteEditorTitle(page);
   await title.click();
   await page.keyboard.press('Enter');
-  await importImage(page, 'http://localhost:8081/large-image.png');
+  await importImage(page, 'large-image.png');
   await page.locator('affine-page-image').first().dblclick();
   const locator = page.getByTestId('image-preview-modal');
   await expect(locator).toBeVisible();
@@ -41,7 +41,7 @@ test('image go left and right', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -56,7 +56,7 @@ test('image go left and right', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/affine-preview.png');
+    await importImage(page, 'affine-preview.png');
   }
   const locator = page.getByTestId('image-preview-modal');
   await expect(locator).toBeHidden();
@@ -91,7 +91,7 @@ test('image able to zoom in and out with mouse scroll', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -145,7 +145,7 @@ test('image able to zoom in and out with button click', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -192,7 +192,7 @@ test('image should able to go left and right by buttons', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -207,7 +207,7 @@ test('image should able to go left and right by buttons', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/affine-preview.png');
+    await importImage(page, 'affine-preview.png');
   }
   const locator = page.getByTestId('image-preview-modal');
   await page.locator('affine-page-image').first().dblclick();
@@ -245,7 +245,7 @@ test('image able to fit to screen by button', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -303,7 +303,7 @@ test('image able to reset zoom to 100%', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -357,7 +357,7 @@ test('image able to copy to clipboard', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -375,6 +375,35 @@ test('image able to copy to clipboard', async ({ page }) => {
   ).toBeVisible();
 });
 
+test('image preview should be able to copy image to clipboard on copy event', async ({
+  page,
+}) => {
+  await openHomePage(page);
+  await waitForEditorLoad(page);
+  await clickNewPageButton(page);
+  let blobId: string;
+  {
+    const title = getBlockSuiteEditorTitle(page);
+    await title.click();
+    await page.keyboard.press('Enter');
+    await importImage(page, 'large-image.png');
+    await page.locator('affine-page-image').first().dblclick();
+    await page.waitForTimeout(500);
+    blobId = (await page
+      .getByTestId('image-preview-modal')
+      .locator('img')
+      .first()
+      .getAttribute('data-blob-id')) as string;
+    expect(blobId).toBeTruthy();
+  }
+  const locator = page.getByTestId('image-preview-modal');
+  await expect(locator).toBeVisible();
+  await page.dispatchEvent('body', 'copy');
+  await expect(
+    page.locator('[data-testid=affine-toast]:has-text("Copied to clipboard.")')
+  ).toBeVisible();
+});
+
 test('image able to download', async ({ page }) => {
   await openHomePage(page);
   await waitForEditorLoad(page);
@@ -384,7 +413,7 @@ test('image able to download', async ({ page }) => {
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -415,7 +444,7 @@ test('image should only able to move when image is larger than viewport', async 
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -473,7 +502,7 @@ test('image should able to delete and when delete, it will move to previous/next
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -488,7 +517,7 @@ test('image should able to delete and when delete, it will move to previous/next
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/affine-preview.png');
+    await importImage(page, 'affine-preview.png');
   }
   const locator = page.getByTestId('image-preview-modal');
   await page.locator('affine-page-image').first().dblclick();
@@ -512,7 +541,7 @@ test('image should able to delete and when delete, it will move to previous/next
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/affine-preview.png');
+    await importImage(page, 'affine-preview.png');
   }
   await page.locator('affine-page-image').first().dblclick();
   await locator.getByTestId('next-image-button').click();
@@ -549,10 +578,10 @@ test('tooltips for all buttons should be visible when hovering', async ({
     const title = getBlockSuiteEditorTitle(page);
     await title.click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().click();
     await page.keyboard.press('Enter');
-    await importImage(page, 'http://localhost:8081/large-image.png');
+    await importImage(page, 'large-image.png');
     await page.locator('affine-page-image').first().dblclick();
     await page.waitForTimeout(500);
     blobId = (await page
@@ -653,7 +682,7 @@ test('keypress esc should close the modal', async ({ page }) => {
   const title = getBlockSuiteEditorTitle(page);
   await title.click();
   await page.keyboard.press('Enter');
-  await importImage(page, 'http://localhost:8081/large-image.png');
+  await importImage(page, 'large-image.png');
   await page.locator('affine-page-image').first().dblclick();
   const locator = page.getByTestId('image-preview-modal');
   await expect(locator).toBeVisible();
@@ -671,7 +700,7 @@ test('when mouse moves outside, the modal should be closed', async ({
   const title = getBlockSuiteEditorTitle(page);
   await title.click();
   await page.keyboard.press('Enter');
-  await importImage(page, 'http://localhost:8081/large-image.png');
+  await importImage(page, 'large-image.png');
   await page.locator('affine-page-image').first().dblclick();
   const locator = page.getByTestId('image-preview-modal');
   await expect(locator).toBeVisible();
@@ -692,7 +721,7 @@ test('caption should be visible and different styles were applied if image zoome
   const title = getBlockSuiteEditorTitle(page);
   await title.click();
   await page.keyboard.press('Enter');
-  await importImage(page, 'http://localhost:8081/large-image.png');
+  await importImage(page, 'large-image.png');
   await page.locator('affine-page-image').first().hover();
   await page
     .locator('.affine-image-toolbar-container .image-toolbar-button.caption')

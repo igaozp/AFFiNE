@@ -4,7 +4,7 @@ import {
   defineRuntimeConfig,
   defineStartupConfig,
   ModuleConfig,
-} from '../../fundamentals/config';
+} from '../../base/config';
 
 export interface PaymentStartupConfig {
   stripe?: {
@@ -29,6 +29,6 @@ defineStartupConfig('plugins.payment', {});
 defineRuntimeConfig('plugins.payment', {
   showLifetimePrice: {
     desc: 'Whether enable lifetime price and allow user to pay for it.',
-    default: false,
+    default: true,
   },
 });

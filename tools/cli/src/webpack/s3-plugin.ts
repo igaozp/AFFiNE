@@ -15,18 +15,18 @@ export class WebpackS3Plugin implements WebpackPluginInstance {
     region: 'auto',
     endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
     credentials: {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
     },
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
   });
 
   apply(compiler: Compiler) {
     compiler.hooks.assetEmitted.tapPromise(
       'WebpackS3Plugin',
       async (asset, { outputPath }) => {
-        if (asset === 'index.html') {
+        if (asset.endsWith('.html')) {
           return;
         }
         const assetPath = join(outputPath, asset);

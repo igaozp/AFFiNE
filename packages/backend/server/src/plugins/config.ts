@@ -1,9 +1,9 @@
-import { ModuleStartupConfigDescriptions } from '../fundamentals/config/types';
+import { ModuleStartupConfigDescriptions } from '../base/config/types';
 
 export interface PluginsConfig {}
 export type AvailablePlugins = keyof PluginsConfig;
 
-declare module '../fundamentals/config' {
+declare module '../base/config' {
   interface AppConfig {
     plugins: PluginsConfig;
   }

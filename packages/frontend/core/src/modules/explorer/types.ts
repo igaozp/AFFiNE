@@ -5,4 +5,5 @@ export type CollapsibleSectionName =
   | 'tags'
   | 'organize'
   | 'favoritesOld'
-  | 'migrationFavorites';
+  | 'migrationFavorites'
+  | 'others';

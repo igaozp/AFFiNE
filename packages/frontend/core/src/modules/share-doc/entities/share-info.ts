@@ -1,8 +1,7 @@
 import type {
   GetWorkspacePublicPageByIdQuery,
-  PublicPageMode,
+  PublicDocMode,
 } from '@affine/graphql';
-import type { DocService, WorkspaceService } from '@toeverything/infra';
 import {
   backoffRetry,
   catchErrorInto,
@@ -17,9 +16,11 @@ import {
 import { switchMap } from 'rxjs';
 
 import { isBackendError, isNetworkError } from '../../cloud';
+import type { DocService } from '../../doc';
+import type { WorkspaceService } from '../../workspace';
 import type { ShareStore } from '../stores/share';
 
-type ShareInfoType = GetWorkspacePublicPageByIdQuery['workspace']['publicPage'];
+type ShareInfoType = GetWorkspacePublicPageByIdQuery['workspace']['publicDoc'];
 
 export class ShareInfo extends Entity {
   info$ = new LiveData<ShareInfoType | undefined | null>(null);
@@ -69,7 +70,7 @@ export class ShareInfo extends Entity {
     return this.isRevalidating$.waitFor(v => v === false, signal);
   }
 
-  async enableShare(mode: PublicPageMode) {
+  async enableShare(mode: PublicDocMode) {
     await this.store.enableSharePage(
       this.workspaceService.workspace.id,
       this.docService.doc.id,
@@ -78,7 +79,7 @@ export class ShareInfo extends Entity {
     await this.waitForRevalidation();
   }
 
-  async changeShare(mode: PublicPageMode) {
+  async changeShare(mode: PublicDocMode) {
     await this.enableShare(mode);
   }
 

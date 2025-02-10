@@ -1,9 +1,7 @@
-import type {
-  DocRecord,
-  DocsService,
-  WorkspaceLocalState,
-} from '@toeverything/infra';
 import { Service } from '@toeverything/infra';
+
+import type { DocRecord, DocsService } from '../../doc';
+import type { WorkspaceLocalState } from '../../workspace';
 
 const RECENT_PAGES_LIMIT = 3; // adjust this?
 const RECENT_PAGES_KEY = 'recent-pages';

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   DefaultAvatarBottomItemStyle,
@@ -27,10 +27,14 @@ export const ColorfulFallback = ({ char }: { char: string }) => {
     return colorsSchema[index % colorsSchema.length];
   }, [char]);
 
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [topColor, middleColor, bottomColor] = colors;
   const [isHover, setIsHover] = useState(false);
+
+  useEffect(() => {
+    return () => void (timer.current && clearTimeout(timer.current));
+  }, []);
 
   return (
     <div
@@ -41,7 +45,9 @@ export const ColorfulFallback = ({ char }: { char: string }) => {
         }, 300);
       }}
       onMouseLeave={() => {
-        clearTimeout(timer.current);
+        if (timer.current) {
+          clearTimeout(timer.current);
+        }
         setIsHover(false);
       }}
     >

@@ -5,13 +5,14 @@ import {
   useConfirmModal,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/components/blocksuite/block-suite-page-list/utils';
+import { useDeleteCollectionInfo } from '@affine/core/components/hooks/affine/use-delete-collection-info';
 import { IsFavoriteIcon } from '@affine/core/components/pure/icons';
-import { useDeleteCollectionInfo } from '@affine/core/hooks/affine/use-delete-collection-info';
-import { track } from '@affine/core/mixpanel';
 import { CollectionService } from '@affine/core/modules/collection';
-import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/properties';
+import { CompatibleFavoriteItemsAdapter } from '@affine/core/modules/favorite';
 import { WorkbenchService } from '@affine/core/modules/workbench';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import {
   DeleteIcon,
   FilterIcon,
@@ -19,12 +20,7 @@ import {
   PlusIcon,
   SplitViewIcon,
 } from '@blocksuite/icons/rc';
-import {
-  FeatureFlagService,
-  useLiveData,
-  useServices,
-  WorkspaceService,
-} from '@toeverything/infra';
+import { useLiveData, useServices } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
 import type { NodeOperation } from '../../tree/types';
@@ -40,13 +36,11 @@ export const useExplorerCollectionNodeOperations = (
     workspaceService,
     collectionService,
     compatibleFavoriteItemsAdapter,
-    featureFlagService,
   } = useServices({
     WorkbenchService,
     WorkspaceService,
     CollectionService,
     CompatibleFavoriteItemsAdapter,
-    FeatureFlagService,
   });
   const deleteInfo = useDeleteCollectionInfo();
 
@@ -54,9 +48,6 @@ export const useExplorerCollectionNodeOperations = (
     workspaceService.workspace.docCollection
   );
 
-  const enableMultiView = useLiveData(
-    featureFlagService.flags.enable_multi_view.$
-  );
   const favorite = useLiveData(
     useMemo(
       () =>
@@ -73,15 +64,8 @@ export const useExplorerCollectionNodeOperations = (
     track.$.navigationPanel.collections.addDocToCollection({
       control: 'button',
     });
-    workbenchService.workbench.openDoc(newDoc.id);
     onOpenCollapsed();
-  }, [
-    collectionId,
-    collectionService,
-    createPage,
-    onOpenCollapsed,
-    workbenchService.workbench,
-  ]);
+  }, [collectionId, collectionService, createPage, onOpenCollapsed]);
 
   const handleToggleFavoriteCollection = useCallback(() => {
     compatibleFavoriteItemsAdapter.toggle(collectionId, 'collection');
@@ -183,7 +167,7 @@ export const useExplorerCollectionNodeOperations = (
           </MenuItem>
         ),
       },
-      ...(environment.isElectron && enableMultiView
+      ...(BUILD_CONFIG.isElectron
         ? [
             {
               index: 99,
@@ -216,7 +200,6 @@ export const useExplorerCollectionNodeOperations = (
       },
     ],
     [
-      enableMultiView,
       favorite,
       handleAddDocToCollection,
       handleDeleteCollection,

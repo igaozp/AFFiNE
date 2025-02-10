@@ -73,7 +73,7 @@ const ViewIsland = ({
     );
   }
 
-  const [island] = useState<Island>(createIsland());
+  const [island] = useState<Island>(createIsland);
 
   useEffect(() => {
     setter(prev => ({ ...prev, [id]: island }));

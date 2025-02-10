@@ -38,7 +38,11 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
   const { resetPasswordLink, onResetPassword } = useResetUserPassword();
 
   const openResetPasswordDialog = useCallback(() => {
-    onResetPassword(user.id, () => setResetPasswordDialogOpen(true));
+    onResetPassword(user.id, () => setResetPasswordDialogOpen(true)).catch(
+      e => {
+        console.error(e);
+      }
+    );
   }, [onResetPassword, user.id]);
 
   const handleCopy = useCallback(() => {

@@ -21,7 +21,7 @@ export const InviteModal = ({
 }: InviteModalProps) => {
   const t = useI18n();
   const [inviteEmail, setInviteEmail] = useState('');
-  const [permission] = useState(Permission.Write);
+  const [permission] = useState(Permission.Collaborator);
   const [isValidEmail, setIsValidEmail] = useState(true);
 
   const handleConfirm = useCallback(() => {
@@ -61,7 +61,7 @@ export const InviteModal = ({
       confirmButtonOptions={{
         loading: isMutating,
         variant: 'primary',
-        ['data-testid' as string]: 'confirm-enable-affine-cloud-button',
+        'data-testid': 'confirm-enable-affine-cloud-button',
       }}
       onConfirm={handleConfirm}
     >

@@ -1,0 +1,17 @@
+[package]
+edition = "2021"
+name    = "affine_common"
+version = "0.1.0"
+
+[dependencies]
+chrono = { workspace = true }
+rand   = { workspace = true }
+sha3   = { workspace = true }
+
+[dev-dependencies]
+criterion2 = { workspace = true }
+rayon      = { workspace = true }
+
+[[bench]]
+harness = false
+name    = "hashcash"

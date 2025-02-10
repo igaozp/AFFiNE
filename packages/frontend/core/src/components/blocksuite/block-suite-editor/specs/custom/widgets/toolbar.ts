@@ -2,19 +2,21 @@ import { notify } from '@affine/component';
 import {
   generateUrl,
   type UseSharingUrl,
-} from '@affine/core/hooks/affine/use-share-url';
-import { track } from '@affine/core/mixpanel';
-import { getAffineCloudBaseUrl } from '@affine/core/modules/cloud/services/fetch';
+} from '@affine/core/components/hooks/affine/use-share-url';
+import { WorkspaceServerService } from '@affine/core/modules/cloud';
 import { EditorService } from '@affine/core/modules/editor';
+import { copyLinkToBlockStdScopeClipboard } from '@affine/core/utils/clipboard';
 import { I18n } from '@affine/i18n';
-import type { MenuItemGroup } from '@blocksuite/affine-components/toolbar';
+import { track } from '@affine/track';
 import type {
   GfxBlockElementModel,
   GfxPrimitiveElementModel,
-} from '@blocksuite/block-std/gfx';
-import type { MenuContext } from '@blocksuite/blocks';
+} from '@blocksuite/affine/block-std/gfx';
+import type { MenuContext, MenuItemGroup } from '@blocksuite/affine/blocks';
 import { LinkIcon } from '@blocksuite/icons/lit';
 import type { FrameworkProvider } from '@toeverything/infra';
+
+import { createCopyAsPngMenuItem } from './copy-as-image';
 
 export function createToolbarMoreMenuConfig(framework: FrameworkProvider) {
   return {
@@ -39,6 +41,12 @@ export function createToolbarMoreMenuConfig(framework: FrameworkProvider) {
           copyIndex + 1,
           0,
           createCopyLinkToBlockMenuItem(framework)
+        );
+
+        clipboardGroup.items.splice(
+          copyIndex + 1,
+          0,
+          createCopyAsPngMenuItem(framework)
         );
       }
 
@@ -77,18 +85,14 @@ function createCopyLinkToBlockMenuItem(
 ) {
   return {
     ...item,
-    action: (ctx: MenuContext) => {
-      const baseUrl = getAffineCloudBaseUrl();
-      if (!baseUrl) {
-        ctx.close();
-        return;
-      }
+    action: async (ctx: MenuContext) => {
+      const workspaceServerService = framework.get(WorkspaceServerService);
 
       const { editor } = framework.get(EditorService);
       const mode = editor.mode$.value;
       const pageId = editor.doc.id;
       const workspaceId = editor.doc.workspace.id;
-      const options: UseSharingUrl = { workspaceId, pageId, shareMode: mode };
+      const options: UseSharingUrl = { workspaceId, pageId, mode };
       let type = '';
 
       if (mode === 'page') {
@@ -108,26 +112,25 @@ function createCopyLinkToBlockMenuItem(
         }
       }
 
-      const str = generateUrl(options);
+      const str = generateUrl({
+        ...options,
+        baseUrl: workspaceServerService.server?.baseUrl ?? location.origin,
+      });
       if (!str) {
         ctx.close();
         return;
       }
 
-      const title = editor.doc.title$.value;
+      const success = await copyLinkToBlockStdScopeClipboard(
+        str,
+        ctx.std.clipboard
+      );
 
-      ctx.std.clipboard
-        .writeToClipboard(items => {
-          items['text/plain'] = str;
-          // wrap a link
-          items['text/html'] = `<a title="${title}" href="${str}">${title}</a>`;
-          return items;
-        })
-        .then(() => {
-          track.doc.editor.toolbar.copyBlockToLink({ type });
-          notify.success({ title: I18n['Copied link to clipboard']() });
-        })
-        .catch(console.error);
+      if (success) {
+        notify.success({ title: I18n['Copied link to clipboard']() });
+      }
+
+      track.doc.editor.toolbar.copyBlockToLink({ type });
 
       ctx.close();
     },

@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
-import { AiPromptRole, PrismaClient } from '@prisma/client';
+import { AiPromptRole, Prisma, PrismaClient } from '@prisma/client';
 
-import { FeatureManagementService } from '../../core/features';
-import { QuotaService } from '../../core/quota';
 import {
   CopilotActionTaken,
   CopilotMessageNotFound,
@@ -12,7 +10,10 @@ import {
   CopilotQuotaExceeded,
   CopilotSessionDeleted,
   CopilotSessionNotFound,
-} from '../../fundamentals';
+  PrismaTransaction,
+} from '../../base';
+import { QuotaService } from '../../core/quota';
+import { Models } from '../../models';
 import { ChatMessageCache } from './message';
 import { PromptService } from './prompt';
 import {
@@ -22,6 +23,7 @@ import {
   ChatMessageSchema,
   ChatSessionForkOptions,
   ChatSessionOptions,
+  ChatSessionPromptUpdateOptions,
   ChatSessionState,
   getTokenEncoder,
   ListHistoriesOptions,
@@ -149,13 +151,24 @@ export class ChatSession implements AsyncDisposable {
         normalizedParams,
         this.config.sessionId
       );
-      finished[0].attachments = firstMessage.attachments;
+
+      // attachments should be combined with the first user message
+      const firstUserMessage =
+        finished.find(m => m.role === 'user') || finished[0];
+      firstUserMessage.attachments = [
+        finished[0].attachments || [],
+        firstMessage.attachments || [],
+      ]
+        .flat()
+        .filter(v => !!v?.trim());
+
       return finished;
     }
 
+    const lastMessage = messages.at(-1);
     return [
       ...this.state.prompt.finish(
-        Object.keys(params).length ? params : firstMessage?.params || {},
+        Object.keys(params).length ? params : lastMessage?.params || {},
         this.config.sessionId
       ),
       ...messages.filter(m => m.content?.trim() || m.attachments?.length),
@@ -182,11 +195,29 @@ export class ChatSessionService {
 
   constructor(
     private readonly db: PrismaClient,
-    private readonly feature: FeatureManagementService,
     private readonly quota: QuotaService,
     private readonly messageCache: ChatMessageCache,
-    private readonly prompt: PromptService
+    private readonly prompt: PromptService,
+    private readonly models: Models
   ) {}
+
+  private async haveSession(
+    sessionId: string,
+    userId: string,
+    tx?: PrismaTransaction,
+    params?: Prisma.AiSessionCountArgs['where']
+  ) {
+    const executor = tx ?? this.db;
+    return await executor.aiSession
+      .count({
+        where: {
+          id: sessionId,
+          userId,
+          ...params,
+        },
+      })
+      .then(c => c > 0);
+  }
 
   private async setSession(state: ChatSessionState): Promise<string> {
     return await this.db.$transaction(async tx => {
@@ -216,15 +247,7 @@ export class ChatSessionService {
         if (id) sessionId = id;
       }
 
-      const haveSession = await tx.aiSession
-        .count({
-          where: {
-            id: sessionId,
-            userId: state.userId,
-          },
-        })
-        .then(c => c > 0);
-
+      const haveSession = await this.haveSession(sessionId, state.userId, tx);
       if (haveSession) {
         // message will only exists when setSession call by session.save
         if (state.messages.length) {
@@ -522,12 +545,15 @@ export class ChatSessionService {
   }
 
   async getQuota(userId: string) {
-    const isCopilotUser = await this.feature.isCopilotUser(userId);
+    const isCopilotUser = await this.models.userFeature.has(
+      userId,
+      'unlimited_copilot'
+    );
 
     let limit: number | undefined;
     if (!isCopilotUser) {
       const quota = await this.quota.getUserQuota(userId);
-      limit = quota.feature.copilotActionLimit;
+      limit = quota.copilotActionLimit;
     }
 
     const used = await this.countUserMessages(userId);
@@ -549,6 +575,7 @@ export class ChatSessionService {
       this.logger.error(`Prompt not found: ${options.promptName}`);
       throw new CopilotPromptNotFound({ name: options.promptName });
     }
+
     return await this.setSession({
       ...options,
       sessionId,
@@ -556,6 +583,32 @@ export class ChatSessionService {
       messages: [],
       // when client create chat session, we always find root session
       parentSessionId: null,
+    });
+  }
+
+  async updateSessionPrompt(
+    options: ChatSessionPromptUpdateOptions
+  ): Promise<string> {
+    const prompt = await this.prompt.get(options.promptName);
+    if (!prompt) {
+      this.logger.error(`Prompt not found: ${options.promptName}`);
+      throw new CopilotPromptNotFound({ name: options.promptName });
+    }
+    return await this.db.$transaction(async tx => {
+      let sessionId = options.sessionId;
+      const haveSession = await this.haveSession(
+        sessionId,
+        options.userId,
+        tx,
+        { prompt: { action: null } }
+      );
+      if (haveSession) {
+        await tx.aiSession.update({
+          where: { id: sessionId },
+          data: { promptName: prompt.name },
+        });
+      }
+      return sessionId;
     });
   }
 

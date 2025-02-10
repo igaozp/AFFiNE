@@ -1,4 +1,4 @@
-import { applyDecorators, Logger } from '@nestjs/common';
+import { applyDecorators, Logger, UseInterceptors } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -7,33 +7,33 @@ import {
   SubscribeMessage as RawSubscribeMessage,
   WebSocketGateway,
 } from '@nestjs/websockets';
+import { ClsInterceptor } from 'nestjs-cls';
 import { Socket } from 'socket.io';
-import { diffUpdate, encodeStateVectorFromUpdate } from 'yjs';
 
 import {
   AlreadyInSpace,
-  CallTimer,
-  Config,
+  CallMetric,
   DocNotFound,
   GatewayErrorWrapper,
   metrics,
   NotInSpace,
+  Runtime,
   SpaceAccessDenied,
   VersionRejected,
-} from '../../fundamentals';
+} from '../../base';
 import { CurrentUser } from '../auth';
 import {
   DocStorageAdapter,
   PgUserspaceDocStorageAdapter,
   PgWorkspaceDocStorageAdapter,
 } from '../doc';
-import { Permission, PermissionService } from '../permission';
+import { PermissionService, WorkspaceRole } from '../permission';
 import { DocID } from '../utils/doc';
 
 const SubscribeMessage = (event: string) =>
   applyDecorators(
     GatewayErrorWrapper(event),
-    CallTimer('socketio', 'event_duration', { event }),
+    CallMetric('socketio', 'event_duration', undefined, { event }),
     RawSubscribeMessage(event)
   );
 
@@ -83,6 +83,9 @@ interface LeaveSpaceAwarenessMessage {
   docId: string;
 }
 
+/**
+ * @deprecated
+ */
 interface PushDocUpdatesMessage {
   spaceType: SpaceType;
   spaceId: string;
@@ -90,11 +93,24 @@ interface PushDocUpdatesMessage {
   updates: string[];
 }
 
+interface PushDocUpdateMessage {
+  spaceType: SpaceType;
+  spaceId: string;
+  docId: string;
+  update: string;
+}
+
 interface LoadDocMessage {
   spaceType: SpaceType;
   spaceId: string;
   docId: string;
   stateVector?: string;
+}
+
+interface DeleteDocMessage {
+  spaceType: SpaceType;
+  spaceId: string;
+  docId: string;
 }
 
 interface LoadDocTimestampsMessage {
@@ -114,7 +130,9 @@ interface UpdateAwarenessMessage {
   docId: string;
   awarenessUpdate: string;
 }
+
 @WebSocketGateway()
+@UseInterceptors(ClsInterceptor)
 export class SpaceSyncGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
@@ -123,7 +141,7 @@ export class SpaceSyncGateway
   private connectionCount = 0;
 
   constructor(
-    private readonly config: Config,
+    private readonly runtime: Runtime,
     private readonly permissions: PermissionService,
     private readonly workspace: PgWorkspaceDocStorageAdapter,
     private readonly userspace: PgUserspaceDocStorageAdapter
@@ -131,11 +149,13 @@ export class SpaceSyncGateway
 
   handleConnection() {
     this.connectionCount++;
+    this.logger.log(`New connection, total: ${this.connectionCount}`);
     metrics.socketio.gauge('realtime_connections').record(this.connectionCount);
   }
 
   handleDisconnect() {
     this.connectionCount--;
+    this.logger.log(`Connection disconnected, total: ${this.connectionCount}`);
     metrics.socketio.gauge('realtime_connections').record(this.connectionCount);
   }
 
@@ -159,7 +179,7 @@ export class SpaceSyncGateway
   }
 
   async assertVersion(client: Socket, version?: string) {
-    const shouldCheckClientVersion = await this.config.runtime.fetch(
+    const shouldCheckClientVersion = await this.runtime.fetch(
       'flags/syncClientVersionCheck'
     );
     if (
@@ -179,26 +199,6 @@ export class SpaceSyncGateway
         version: version || 'unknown',
         serverVersion: AFFiNE.version,
       });
-    }
-  }
-
-  async joinWorkspace(
-    client: Socket,
-    room: `${string}:${'sync' | 'awareness'}`
-  ) {
-    await client.join(room);
-  }
-
-  async leaveWorkspace(
-    client: Socket,
-    room: `${string}:${'sync' | 'awareness'}`
-  ) {
-    await client.leave(room);
-  }
-
-  assertInWorkspace(client: Socket, room: `${string}:${'sync' | 'awareness'}`) {
-    if (!client.rooms.has(room)) {
-      throw new NotInSpace({ spaceId: room.split(':')[0] });
     }
   }
 
@@ -233,36 +233,42 @@ export class SpaceSyncGateway
     @MessageBody()
     { spaceType, spaceId, docId, stateVector }: LoadDocMessage
   ): Promise<
-    EventResponse<{ missing: string; state?: string; timestamp: number }>
+    EventResponse<{ missing: string; state: string; timestamp: number }>
   > {
     const adapter = this.selectAdapter(client, spaceType);
     adapter.assertIn(spaceId);
 
-    const doc = await adapter.get(spaceId, docId);
+    const doc = await adapter.diff(
+      spaceId,
+      docId,
+      stateVector ? Buffer.from(stateVector, 'base64') : undefined
+    );
 
     if (!doc) {
       throw new DocNotFound({ spaceId, docId });
     }
 
-    const missing = Buffer.from(
-      stateVector
-        ? diffUpdate(doc.bin, Buffer.from(stateVector, 'base64'))
-        : doc.bin
-    ).toString('base64');
-
-    const state = Buffer.from(encodeStateVectorFromUpdate(doc.bin)).toString(
-      'base64'
-    );
-
     return {
       data: {
-        missing,
-        state,
+        missing: Buffer.from(doc.missing).toString('base64'),
+        state: Buffer.from(doc.state).toString('base64'),
         timestamp: doc.timestamp,
       },
     };
   }
 
+  @SubscribeMessage('space:delete-doc')
+  async onDeleteSpaceDoc(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() { spaceType, spaceId, docId }: DeleteDocMessage
+  ) {
+    const adapter = this.selectAdapter(client, spaceType);
+    await adapter.delete(spaceId, docId);
+  }
+
+  /**
+   * @deprecated use [space:push-doc-update] instead, client should always merge updates on their own
+   */
   @SubscribeMessage('space:push-doc-updates')
   async onReceiveDocUpdates(
     @ConnectedSocket() client: Socket,
@@ -298,6 +304,51 @@ export class SpaceSyncGateway
         timestamp,
       });
     }
+
+    return {
+      data: {
+        accepted: true,
+        timestamp,
+      },
+    };
+  }
+
+  @SubscribeMessage('space:push-doc-update')
+  async onReceiveDocUpdate(
+    @ConnectedSocket() client: Socket,
+    @CurrentUser() user: CurrentUser,
+    @MessageBody()
+    message: PushDocUpdateMessage
+  ): Promise<EventResponse<{ accepted: true; timestamp?: number }>> {
+    const { spaceType, spaceId, docId, update } = message;
+    const adapter = this.selectAdapter(client, spaceType);
+
+    // TODO(@forehalo): we might need to check write permission before push updates
+    const timestamp = await adapter.push(
+      spaceId,
+      docId,
+      [Buffer.from(update, 'base64')],
+      user.id
+    );
+
+    // TODO(@forehalo): separate different version of clients into different rooms,
+    // so the clients won't receive useless updates events
+    client.to(adapter.room(spaceId)).emit('space:broadcast-doc-updates', {
+      spaceType,
+      spaceId,
+      docId,
+      updates: [update],
+      timestamp,
+    });
+
+    client.to(adapter.room(spaceId)).emit('space:broadcast-doc-update', {
+      spaceType,
+      spaceId,
+      docId,
+      update,
+      timestamp,
+      editor: user.id,
+    });
 
     return {
       data: {
@@ -564,7 +615,7 @@ abstract class SyncSocketAdapter {
 
   async join(userId: string, spaceId: string, roomType: RoomType = 'sync') {
     this.assertNotIn(spaceId, roomType);
-    await this.assertAccessible(spaceId, userId, Permission.Read);
+    await this.assertAccessible(spaceId, userId, WorkspaceRole.Collaborator);
     return this.client.join(this.room(spaceId, roomType));
   }
 
@@ -592,7 +643,7 @@ abstract class SyncSocketAdapter {
   abstract assertAccessible(
     spaceId: string,
     userId: string,
-    permission?: Permission
+    permission?: WorkspaceRole
   ): Promise<void>;
 
   push(spaceId: string, docId: string, updates: Buffer[], editorId: string) {
@@ -600,9 +651,14 @@ abstract class SyncSocketAdapter {
     return this.storage.pushDocUpdates(spaceId, docId, updates, editorId);
   }
 
-  get(spaceId: string, docId: string) {
+  diff(spaceId: string, docId: string, stateVector?: Uint8Array) {
     this.assertIn(spaceId);
-    return this.storage.getDoc(spaceId, docId);
+    return this.storage.getDocDiff(spaceId, docId, stateVector);
+  }
+
+  delete(spaceId: string, docId: string) {
+    this.assertIn(spaceId);
+    return this.storage.deleteDoc(spaceId, docId);
   }
 
   getTimestamps(spaceId: string, timestamp?: number) {
@@ -630,15 +686,15 @@ class WorkspaceSyncAdapter extends SyncSocketAdapter {
     return super.push(spaceId, id.guid, updates, editorId);
   }
 
-  override get(spaceId: string, docId: string) {
+  override diff(spaceId: string, docId: string, stateVector?: Uint8Array) {
     const id = new DocID(docId, spaceId);
-    return this.storage.getDoc(spaceId, id.guid);
+    return this.storage.getDocDiff(spaceId, id.guid, stateVector);
   }
 
   async assertAccessible(
     spaceId: string,
     userId: string,
-    permission: Permission = Permission.Read
+    permission: WorkspaceRole = WorkspaceRole.Collaborator
   ) {
     if (
       !(await this.permission.isWorkspaceMember(spaceId, userId, permission))
@@ -656,7 +712,7 @@ class UserspaceSyncAdapter extends SyncSocketAdapter {
   async assertAccessible(
     spaceId: string,
     userId: string,
-    _permission: Permission = Permission.Read
+    _permission: WorkspaceRole = WorkspaceRole.Collaborator
   ) {
     if (spaceId !== userId) {
       throw new SpaceAccessDenied({ spaceId });

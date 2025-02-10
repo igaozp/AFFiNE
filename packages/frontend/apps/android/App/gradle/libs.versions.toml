@@ -1,0 +1,41 @@
+[versions]
+androidxEspressoCoreVersion = "3.6.1"
+androidxJunitVersion = "1.2.1"
+browser = "1.8.0"
+coreKtx = "1.15.0"
+coreSplashScreenVersion = "1.0.1"
+jna = "5.16.0"
+junitVersion = "4.13.2"
+kotlin = "2.1.10"
+kotlinxCoroutinesCore = "1.10.1"
+rustAndroid = "0.9.6"
+appcompat = "1.7.0"
+coordinatorLayout = "1.2.0"
+googleServices = "4.4.2"
+androidGradlePlugin = "8.8.0"
+apollo = "4.1.1"
+
+[libraries]
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
+androidx-coordinatorlayout = { module = "androidx.coordinatorlayout:coordinatorlayout", version.ref = "coordinatorLayout" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "coreSplashScreenVersion" }
+androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidxEspressoCoreVersion" }
+androidx-junit = { module = "androidx.test.ext:junit", version.ref = "androidxJunitVersion" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
+
+google-services = { module = "com.google.gms:google-services", version.ref = "googleServices" }
+android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "androidGradlePlugin" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+junit = { module = "junit:junit", version.ref = "junitVersion" }
+apollo-runtime = { module = "com.apollographql.apollo:apollo-runtime", version.ref = "apollo" }
+apollo-api = { module = "com.apollographql.apollo:apollo-api", version.ref = "apollo" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
+android-library = { id = "com.android.library", version.ref = "androidGradlePlugin" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+rust-android = { id = "org.mozilla.rust-android-gradle.rust-android", version.ref = "rustAndroid" }
+apollo-android = { id = "com.apollographql.apollo", version.ref = "apollo" }
+jetbrains-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

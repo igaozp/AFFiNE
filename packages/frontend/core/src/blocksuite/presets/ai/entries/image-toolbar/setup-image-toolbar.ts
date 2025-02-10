@@ -1,6 +1,9 @@
 import '../../_common/components/ask-ai-button';
 
-import type { AffineImageToolbarWidget } from '@blocksuite/blocks';
+import {
+  type AffineImageToolbarWidget,
+  ImageSelection,
+} from '@blocksuite/affine/blocks';
 import { html } from 'lit';
 
 import type { AskAIButtonOptions } from '../../_common/components/ask-ai-button';
@@ -26,7 +29,9 @@ export function setupImageToolbarAIEntry(
             action: () => {
               const { selection } = host;
               selection.setGroup('note', [
-                selection.create('image', { blockId: blockComponent.blockId }),
+                selection.create(ImageSelection, {
+                  blockId: blockComponent.blockId,
+                }),
               ]);
             },
             render: item =>

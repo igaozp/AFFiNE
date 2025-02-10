@@ -1,11 +1,9 @@
-import {
-  DocScope,
-  DocService,
-  type Framework,
-  WorkspaceScope,
-} from '@toeverything/infra';
+import { type Framework } from '@toeverything/infra';
 
+import { DocScope } from '../doc/scopes/doc';
+import { DocService } from '../doc/services/doc';
 import { DocsSearchService } from '../docs-search';
+import { WorkspaceScope } from '../workspace';
 import { DocBacklinks } from './entities/doc-backlinks';
 import { DocLinks } from './entities/doc-links';
 import { DocLinksService } from './services/doc-links';

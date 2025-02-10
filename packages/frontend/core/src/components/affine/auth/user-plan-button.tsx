@@ -1,26 +1,22 @@
 import { Tooltip } from '@affine/component/ui/tooltip';
-import { useCatchEventCallback } from '@affine/core/hooks/use-catch-event-hook';
 import { SubscriptionPlan } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import { useLiveData, useServices } from '@toeverything/infra';
-import { useSetAtom } from 'jotai';
-import { useEffect } from 'react';
+import { useLiveData, useService } from '@toeverything/infra';
+import { type SyntheticEvent, useEffect } from 'react';
 
-import { openSettingModalAtom } from '../../../atoms';
-import {
-  ServerConfigService,
-  SubscriptionService,
-} from '../../../modules/cloud';
+import { ServerService, SubscriptionService } from '../../../modules/cloud';
 import * as styles from './style.css';
 
-export const UserPlanButton = () => {
-  const { serverConfigService, subscriptionService } = useServices({
-    ServerConfigService,
-    SubscriptionService,
-  });
+export const UserPlanButton = ({
+  onClick,
+}: {
+  onClick: (e: SyntheticEvent<Element, Event>) => void;
+}) => {
+  const serverService = useService(ServerService);
+  const subscriptionService = useService(SubscriptionService);
 
   const hasPayment = useLiveData(
-    serverConfigService.serverConfig.features$.map(r => r?.payment)
+    serverService.server.features$.map(r => r?.payment)
   );
   const plan = useLiveData(
     subscriptionService.subscription.pro$.map(subscription =>
@@ -34,15 +30,6 @@ export const UserPlanButton = () => {
     // revalidate subscription to get the latest status
     subscriptionService.subscription.revalidate();
   }, [subscriptionService]);
-
-  const setSettingModalAtom = useSetAtom(openSettingModalAtom);
-  const handleClick = useCatchEventCallback(() => {
-    setSettingModalAtom({
-      open: true,
-      activeTab: 'plans',
-      scrollAnchor: 'cloudPricingPlan',
-    });
-  }, [setSettingModalAtom]);
 
   const t = useI18n();
 
@@ -63,7 +50,7 @@ export const UserPlanButton = () => {
       <div
         data-is-believer={isBeliever ? 'true' : undefined}
         className={styles.userPlanButton}
-        onClick={handleClick}
+        onClick={onClick}
         data-event-props="$.settingsPanel.profileAndBadge.viewPlans"
       >
         {planLabel}

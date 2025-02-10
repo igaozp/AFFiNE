@@ -1,13 +1,24 @@
-import { PageNotFoundError } from '@affine/env/constant';
 import { useI18n } from '@affine/i18n';
+import type { Workspace } from '@blocksuite/affine/store';
 import { useCallback } from 'react';
 
 import {
   RouteLogic,
   useNavigateHelper,
-} from '../../../../hooks/use-navigate-helper';
+} from '../../../../components/hooks/use-navigate-helper';
 import { ErrorDetail, ErrorStatus } from '../error-basic/error-detail';
 import { createErrorFallback } from '../error-basic/fallback-creator';
+
+class PageNotFoundError extends TypeError {
+  readonly docCollection: Workspace;
+  readonly pageId: string;
+
+  constructor(docCollection: Workspace, pageId: string) {
+    super();
+    this.docCollection = docCollection;
+    this.pageId = pageId;
+  }
+}
 
 export const PageNotFoundDetail = createErrorFallback(PageNotFoundError, () => {
   const t = useI18n();

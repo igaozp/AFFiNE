@@ -87,13 +87,13 @@ This could take a while if you build it for the first time.
 Note: use `strip` from system instead of `binutils` if you are running MacOS. [see problem here](https://github.com/toeverything/AFFiNE/discussions/2840)
 
 ```
-yarn workspace @affine/native build
+yarn affine @affine/native build
 ```
 
 ### Build Server Dependencies
 
 ```sh
-yarn workspace @affine/server-native build
+yarn affine @affine/server-native build
 ```
 
 ## Testing

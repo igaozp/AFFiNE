@@ -8,13 +8,13 @@ export const root = style({
   flexShrink: 0,
   width: '100%',
   alignItems: 'stretch',
+  contain: 'strict',
   transition: 'background-color 0.2s, opacity 0.2s',
   ':hover': {
     backgroundColor: cssVar('hoverColor'),
   },
   overflow: 'hidden',
   cursor: 'default',
-  willChange: 'opacity',
   selectors: {
     '&[data-clickable=true]': {
       cursor: 'pointer',
@@ -51,7 +51,6 @@ globalStyle(`[data-draggable=true] ${dndCell}:before`, {
   backgroundColor: cssVar('placeholderColor'),
   borderRadius: '2px',
   opacity: 0,
-  willChange: 'height, opacity',
 });
 globalStyle(`[data-draggable=true] ${dndCell}:hover:before`, {
   height: 12,
@@ -73,9 +72,9 @@ globalStyle(`${root} > :last-child`, {
   paddingRight: '8px',
 });
 export const titleIconsWrapper = style({
-  padding: '0 5px',
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'center',
   gap: '10px',
 });
 export const selectionCell = style({

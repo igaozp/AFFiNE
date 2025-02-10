@@ -9,12 +9,13 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
 
-import { EditorSettingService } from '../../editor-settting';
-import type { PeekViewAnimation } from '../entities/peek-view';
+import { EditorSettingService } from '../../editor-setting';
+import type { PeekViewAnimation, PeekViewMode } from '../entities/peek-view';
 import * as styles from './modal-container.css';
 
 const contentOptions: Dialog.DialogContentProps = {
@@ -55,7 +56,7 @@ export type PeekViewModalContainerProps = PropsWithChildren<{
   controls?: React.ReactNode;
   onAnimationStart?: () => void;
   onAnimateEnd?: () => void;
-  padding?: boolean;
+  mode?: PeekViewMode;
   animation?: PeekViewAnimation;
   testId?: string;
   /** Whether to apply shadow & bg */
@@ -77,7 +78,7 @@ export const PeekViewModalContainer = forwardRef<
     onAnimationStart,
     onAnimateEnd,
     animation = 'zoom',
-    padding = true,
+    mode = 'fit',
     dialogFrame = true,
   },
   ref
@@ -116,6 +117,24 @@ export const PeekViewModalContainer = forwardRef<
         contentWrapper?: AnimeParams;
       }
     ) => {
+      // if target has no bounding client rect,
+      // find its parent that has bounding client rect
+      let iteration = 0;
+      while (
+        target &&
+        !target.getBoundingClientRect().width &&
+        iteration < 10
+      ) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        target = target.parentElement || undefined;
+        iteration++;
+      }
+
+      if (!target) {
+        // fallback to fade animation
+        return animateFade(!!zoomIn);
+      }
+
       return new Promise<void>(resolve => {
         const contentClip = contentClipRef.current;
         const content = contentRef.current;
@@ -123,6 +142,7 @@ export const PeekViewModalContainer = forwardRef<
 
         if (!contentClip || !content || !target || !overlay) {
           resolve();
+          setAnimeState('idle');
           return;
         }
         const targets = contentClip;
@@ -295,7 +315,7 @@ export const PeekViewModalContainer = forwardRef<
     };
   }, [onOpenChange]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (animation === 'zoom') {
       open ? animateZoomIn() : animateZoomOut();
     } else if (animation === 'fade') {
@@ -318,13 +338,15 @@ export const PeekViewModalContainer = forwardRef<
           />
           <div
             ref={ref}
-            data-padding={padding}
+            data-mode={mode}
             data-peek-view-wrapper
-            className={clsx(styles.modalContentWrapper)}
+            className={styles.modalContentWrapper}
+            data-mobile={BUILD_CONFIG.isMobileEdition ? '' : undefined}
           >
             <div
               data-anime-state={animeState}
               data-full-width-layout={fullWidthLayout}
+              data-mobile={BUILD_CONFIG.isMobileEdition}
               ref={contentClipRef}
               className={styles.modalContentContainer}
             >

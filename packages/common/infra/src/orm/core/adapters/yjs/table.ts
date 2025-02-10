@@ -64,6 +64,10 @@ export class YjsTableAdapter implements TableAdapter {
 
     this.doc.transact(() => {
       for (const key in data) {
+        if (data[key] === undefined) {
+          // skip undefined fields, avoid unexpected override
+          continue;
+        }
         record.set(key, data[key]);
       }
 
@@ -208,7 +212,7 @@ export class YjsTableAdapter implements TableAdapter {
     if (select === 'key') {
       return this.keyof(record);
     } else if (select === '*') {
-      selectedFields = this.fields;
+      return this.toObject(record);
     } else {
       selectedFields = select;
     }
@@ -222,7 +226,22 @@ export class YjsTableAdapter implements TableAdapter {
       (Array.isArray(where)
         ? where.length === 0
           ? false
-          : where.every(c => this.field(record, c.field) === c.value)
+          : where.every(c => {
+              const field = this.field(record, c.field);
+              const condition = c.value;
+
+              if (typeof condition === 'object') {
+                if (condition === null) {
+                  return field === null;
+                }
+
+                if ('not' in condition) {
+                  return field !== condition.not;
+                }
+              }
+
+              return field === condition;
+            })
         : where.byKey === this.keyof(record))
     );
   }
@@ -238,7 +257,14 @@ export class YjsTableAdapter implements TableAdapter {
   }
 
   private field(ty: AbstractType<any>, field: string) {
-    return YMap.prototype.get.call(ty, field);
+    const val = YMap.prototype.get.call(ty, field);
+
+    // only handle null will make the day easier
+    if (val === undefined) {
+      return null;
+    }
+
+    return val;
   }
 
   private setField(ty: AbstractType<any>, field: string, value: any) {

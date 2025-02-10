@@ -5,13 +5,36 @@ import {
   Module,
 } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ClsPluginTransactional } from '@nestjs-cls/transactional';
+import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
+import { PrismaClient } from '@prisma/client';
+import { Request, Response } from 'express';
 import { get } from 'lodash-es';
+import { ClsModule } from 'nestjs-cls';
 
 import { AppController } from './app.controller';
+import { genRequestId, getOptionalModuleMetadata } from './base';
+import { CacheModule } from './base/cache';
+import { AFFiNEConfig, ConfigModule, mergeConfigOverride } from './base/config';
+import { ErrorModule } from './base/error';
+import { EventModule } from './base/event';
+import { GqlModule } from './base/graphql';
+import { HelpersModule } from './base/helpers';
+import { LoggerModule } from './base/logger';
+import { MailModule } from './base/mailer';
+import { MetricsModule } from './base/metrics';
+import { MutexModule } from './base/mutex';
+import { PrismaModule } from './base/prisma';
+import { RedisModule } from './base/redis';
+import { RuntimeModule } from './base/runtime';
+import { StorageProviderModule } from './base/storage';
+import { RateLimiterModule } from './base/throttler';
+import { WebSocketModule } from './base/websocket';
 import { AuthModule } from './core/auth';
 import { ADD_ENABLED_FEATURES, ServerConfigModule } from './core/config';
 import { DocStorageModule } from './core/doc';
 import { DocRendererModule } from './core/doc-renderer';
+import { DocServiceModule } from './core/doc-service';
 import { FeatureModule } from './core/features';
 import { PermissionModule } from './core/permission';
 import { QuotaModule } from './core/quota';
@@ -20,30 +43,49 @@ import { StorageModule } from './core/storage';
 import { SyncModule } from './core/sync';
 import { UserModule } from './core/user';
 import { WorkspaceModule } from './core/workspaces';
-import { getOptionalModuleMetadata } from './fundamentals';
-import { CacheModule } from './fundamentals/cache';
-import {
-  AFFiNEConfig,
-  ConfigModule,
-  mergeConfigOverride,
-} from './fundamentals/config';
-import { ErrorModule } from './fundamentals/error';
-import { EventModule } from './fundamentals/event';
-import { GqlModule } from './fundamentals/graphql';
-import { HelpersModule } from './fundamentals/helpers';
-import { MailModule } from './fundamentals/mailer';
-import { MetricsModule } from './fundamentals/metrics';
-import { MutexModule } from './fundamentals/mutex';
-import { PrismaModule } from './fundamentals/prisma';
-import { StorageProviderModule } from './fundamentals/storage';
-import { RateLimiterModule } from './fundamentals/throttler';
-import { WebSocketModule } from './fundamentals/websocket';
+import { ModelsModule } from './models';
 import { REGISTERED_PLUGINS } from './plugins';
+import { LicenseModule } from './plugins/license';
 import { ENABLED_PLUGINS } from './plugins/registry';
 
 export const FunctionalityModules = [
+  ClsModule.forRoot({
+    global: true,
+    // for http / graphql request
+    middleware: {
+      mount: true,
+      generateId: true,
+      idGenerator(req: Request) {
+        // make every request has a unique id to tracing
+        return req.get('x-rpc-trace-id') ?? genRequestId('req');
+      },
+      setup(cls, _req, res: Response) {
+        res.setHeader('X-Request-Id', cls.getId());
+      },
+    },
+    // for websocket connection
+    // https://papooch.github.io/nestjs-cls/considerations/compatibility#websockets
+    interceptor: {
+      mount: true,
+      generateId: true,
+      idGenerator() {
+        // make every request has a unique id to tracing
+        return genRequestId('ws');
+      },
+    },
+    plugins: [
+      // https://papooch.github.io/nestjs-cls/plugins/available-plugins/transactional/prisma-adapter
+      new ClsPluginTransactional({
+        adapter: new TransactionalAdapterPrisma({
+          prismaInjectionToken: PrismaClient,
+        }),
+      }),
+    ],
+  }),
   ConfigModule.forRoot(),
+  RuntimeModule,
   EventModule,
+  RedisModule,
   CacheModule,
   MutexModule,
   PrismaModule,
@@ -53,6 +95,8 @@ export const FunctionalityModules = [
   StorageProviderModule,
   HelpersModule,
   ErrorModule,
+  LoggerModule,
+  WebSocketModule,
 ];
 
 function filterOptionalModule(
@@ -78,11 +122,13 @@ function filterOptionalModule(
 
     if (nonMetRequirements.length) {
       const name = 'module' in module ? module.module.name : module.name;
-      new Logger(name).warn(
-        `${name} is not enabled because of the required configuration is not satisfied.`,
-        'Unsatisfied configuration:',
-        ...nonMetRequirements.map(config => `  AFFiNE.${config}`)
-      );
+      if (!config.node.test) {
+        new Logger(name).warn(
+          `${name} is not enabled because of the required configuration is not satisfied.`,
+          'Unsatisfied configuration:',
+          ...nonMetRequirements.map(config => `  AFFiNE.${config}`)
+        );
+      }
       return null;
     }
   }
@@ -150,7 +196,13 @@ export function buildAppModule() {
   factor
     // basic
     .use(...FunctionalityModules)
-    .useIf(config => config.flavor.sync, WebSocketModule)
+    .use(ModelsModule)
+
+    // enable schedule module on graphql server and doc service
+    .useIf(
+      config => config.flavor.graphql || config.flavor.doc,
+      ScheduleModule.forRoot()
+    )
 
     // auth
     .use(UserModule, AuthModule, PermissionModule)
@@ -164,12 +216,15 @@ export function buildAppModule() {
     // graphql server only
     .useIf(
       config => config.flavor.graphql,
-      ScheduleModule.forRoot(),
       GqlModule,
       StorageModule,
       ServerConfigModule,
-      WorkspaceModule
+      WorkspaceModule,
+      LicenseModule
     )
+
+    // doc service only
+    .useIf(config => config.flavor.doc, DocServiceModule)
 
     // self hosted server only
     .useIf(config => config.isSelfhosted, SelfhostModule)
@@ -179,7 +234,8 @@ export function buildAppModule() {
   ENABLED_PLUGINS.forEach(name => {
     const plugin = REGISTERED_PLUGINS.get(name);
     if (!plugin) {
-      throw new Error(`Unknown plugin ${name}`);
+      new Logger('AppBuilder').warn(`Unknown plugin ${name}`);
+      return;
     }
 
     factor.use(plugin);

@@ -2,24 +2,52 @@ import './config';
 
 import { ServerFeature } from '../../core/config';
 import { FeatureModule } from '../../core/features';
+import { PermissionModule } from '../../core/permission';
+import { QuotaModule } from '../../core/quota';
+import { UserModule } from '../../core/user';
+import { WorkspaceModule } from '../../core/workspaces';
 import { Plugin } from '../registry';
-import { SubscriptionResolver, UserSubscriptionResolver } from './resolver';
-import { ScheduleManager } from './schedule';
+import { StripeWebhookController } from './controller';
+import { SubscriptionCronJobs } from './cron';
+import { LicenseController } from './license/controller';
+import {
+  SelfhostTeamSubscriptionManager,
+  UserSubscriptionManager,
+  WorkspaceSubscriptionManager,
+} from './manager';
+import { QuotaOverride } from './quota';
+import {
+  SubscriptionResolver,
+  UserSubscriptionResolver,
+  WorkspaceSubscriptionResolver,
+} from './resolver';
 import { SubscriptionService } from './service';
 import { StripeProvider } from './stripe';
 import { StripeWebhook } from './webhook';
 
 @Plugin({
   name: 'payment',
-  imports: [FeatureModule],
+  imports: [
+    FeatureModule,
+    QuotaModule,
+    UserModule,
+    PermissionModule,
+    WorkspaceModule,
+  ],
   providers: [
-    ScheduleManager,
     StripeProvider,
     SubscriptionService,
     SubscriptionResolver,
     UserSubscriptionResolver,
+    StripeWebhook,
+    UserSubscriptionManager,
+    WorkspaceSubscriptionManager,
+    SelfhostTeamSubscriptionManager,
+    SubscriptionCronJobs,
+    WorkspaceSubscriptionResolver,
+    QuotaOverride,
   ],
-  controllers: [StripeWebhook],
+  controllers: [StripeWebhookController, LicenseController],
   requires: [
     'plugins.payment.stripe.keys.APIKey',
     'plugins.payment.stripe.keys.webhookKey',

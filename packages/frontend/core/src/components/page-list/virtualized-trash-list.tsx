@@ -1,9 +1,11 @@
 import { toast, useConfirmModal } from '@affine/component';
-import { useBlockSuiteMetaHelper } from '@affine/core/hooks/affine/use-block-suite-meta-helper';
-import { useBlockSuiteDocMeta } from '@affine/core/hooks/use-block-suite-page-meta';
+import { useBlockSuiteMetaHelper } from '@affine/core/components/hooks/affine/use-block-suite-meta-helper';
+import { useBlockSuiteDocMeta } from '@affine/core/components/hooks/use-block-suite-page-meta';
+import { GuardService } from '@affine/core/modules/permissions';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import { Trans, useI18n } from '@affine/i18n';
-import type { DocMeta } from '@blocksuite/store';
-import { useService, WorkspaceService } from '@toeverything/infra';
+import type { DocMeta } from '@blocksuite/affine/store';
+import { useService } from '@toeverything/infra';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ListFloatingToolbar } from './components/list-floating-toolbar';
@@ -15,11 +17,17 @@ import type { ItemListHandle, ListItem } from './types';
 import { useFilteredPageMetas } from './use-filtered-page-metas';
 import { VirtualizedList } from './virtualized-list';
 
-export const VirtualizedTrashList = () => {
+export const VirtualizedTrashList = ({
+  disableMultiDelete,
+  disableMultiRestore,
+}: {
+  disableMultiDelete?: boolean;
+  disableMultiRestore?: boolean;
+}) => {
   const currentWorkspace = useService(WorkspaceService).workspace;
+  const guardService = useService(GuardService);
   const docCollection = currentWorkspace.docCollection;
-  const { restoreFromTrash, permanentlyDeletePage } =
-    useBlockSuiteMetaHelper(docCollection);
+  const { restoreFromTrash, permanentlyDeletePage } = useBlockSuiteMetaHelper();
   const pageMetas = useBlockSuiteDocMeta(docCollection);
   const filteredPageMetas = useFilteredPageMetas(pageMetas, {
     trash: true,
@@ -34,8 +42,8 @@ export const VirtualizedTrashList = () => {
   const pageHeaderColsDef = usePageHeaderColsDef();
 
   const filteredSelectedPageIds = useMemo(() => {
-    const ids = filteredPageMetas.map(page => page.id);
-    return selectedPageIds.filter(id => ids.includes(id));
+    const ids = new Set(filteredPageMetas.map(page => page.id));
+    return selectedPageIds.filter(id => ids.has(id));
   }, [filteredPageMetas, selectedPageIds]);
 
   const hideFloatingToolbar = useCallback(() => {
@@ -82,16 +90,38 @@ export const VirtualizedTrashList = () => {
     (item: ListItem) => {
       const page = item as DocMeta;
       const onRestorePage = () => {
-        restoreFromTrash(page.id);
-        toast(
-          t['com.affine.toastMessage.restored']({
-            title: page.title || 'Untitled',
+        guardService
+          .can('Doc_Delete', page.id)
+          .then(can => {
+            if (can) {
+              restoreFromTrash(page.id);
+              toast(
+                t['com.affine.toastMessage.restored']({
+                  title: page.title || 'Untitled',
+                })
+              );
+            } else {
+              toast(t['com.affine.no-permission']());
+            }
           })
-        );
+          .catch(e => {
+            console.error(e);
+          });
       };
       const onPermanentlyDeletePage = () => {
-        permanentlyDeletePage(page.id);
-        toast(t['com.affine.toastMessage.permanentlyDeleted']());
+        guardService
+          .can('Doc_Delete', page.id)
+          .then(can => {
+            if (can) {
+              permanentlyDeletePage(page.id);
+              toast(t['com.affine.toastMessage.permanentlyDeleted']());
+            } else {
+              toast(t['com.affine.no-permission']());
+            }
+          })
+          .catch(e => {
+            console.error(e);
+          });
       };
 
       return (
@@ -102,7 +132,7 @@ export const VirtualizedTrashList = () => {
       );
     },
 
-    [permanentlyDeletePage, restoreFromTrash, t]
+    [guardService, permanentlyDeletePage, restoreFromTrash, t]
   );
   const pageItemRenderer = useCallback((item: ListItem) => {
     return <PageListItemRenderer {...item} />;
@@ -128,9 +158,9 @@ export const VirtualizedTrashList = () => {
       />
       <ListFloatingToolbar
         open={showFloatingToolbar}
-        onDelete={onConfirmPermanentlyDelete}
+        onDelete={disableMultiDelete ? undefined : onConfirmPermanentlyDelete}
         onClose={hideFloatingToolbar}
-        onRestore={handleMultiRestore}
+        onRestore={disableMultiRestore ? undefined : handleMultiRestore}
         content={
           <Trans
             i18nKey="com.affine.page.toolbar.selected"

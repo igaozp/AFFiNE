@@ -19,17 +19,19 @@ import { AiPromptRole } from '@prisma/client';
 import { GraphQLJSON, SafeIntResolver } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 
-import { CurrentUser } from '../../core/auth';
-import { Admin } from '../../core/common';
-import { PermissionService } from '../../core/permission';
-import { UserType } from '../../core/user';
 import {
+  CallMetric,
   CopilotFailedToCreateMessage,
+  CopilotSessionNotFound,
   FileUpload,
   RequestMutex,
   Throttle,
   TooManyRequest,
-} from '../../fundamentals';
+} from '../../base';
+import { CurrentUser } from '../../core/auth';
+import { Admin } from '../../core/common';
+import { PermissionService } from '../../core/permission';
+import { UserType } from '../../core/user';
 import { PromptService } from './prompt';
 import { ChatSessionService } from './session';
 import { CopilotStorage } from './storage';
@@ -54,6 +56,17 @@ class CreateChatSessionInput {
 
   @Field(() => String)
   docId!: string;
+
+  @Field(() => String, {
+    description: 'The prompt name to use for the session',
+  })
+  promptName!: string;
+}
+
+@InputType()
+class UpdateChatSessionInput {
+  @Field(() => String)
+  sessionId!: string;
 
   @Field(() => String, {
     description: 'The prompt name to use for the session',
@@ -106,7 +119,7 @@ class CreateChatMessageInput implements Omit<SubmittedMessage, 'content'> {
   blobs!: Promise<FileUpload>[] | undefined;
 
   @Field(() => GraphQLJSON, { nullable: true })
-  params!: Record<string, string> | undefined;
+  params!: Record<string, any> | undefined;
 }
 
 enum ChatHistoryOrder {
@@ -308,6 +321,7 @@ export class CopilotResolver {
   }
 
   @ResolveField(() => [CopilotHistoriesType], {})
+  @CallMetric('ai', 'histories')
   async histories(
     @Parent() copilot: CopilotType,
     @CurrentUser() user: CurrentUser,
@@ -321,6 +335,7 @@ export class CopilotResolver {
       await this.permissions.checkCloudPagePermission(
         workspaceId,
         docId,
+        'Doc.Read',
         user.id
       );
     } else {
@@ -334,6 +349,7 @@ export class CopilotResolver {
       options,
       true
     );
+
     return histories.map(h => ({
       ...h,
       // filter out empty messages
@@ -344,6 +360,7 @@ export class CopilotResolver {
   @Mutation(() => String, {
     description: 'Create a chat session',
   })
+  @CallMetric('ai', 'chat_session_create')
   async createCopilotSession(
     @CurrentUser() user: CurrentUser,
     @Args({ name: 'options', type: () => CreateChatSessionInput })
@@ -352,26 +369,60 @@ export class CopilotResolver {
     await this.permissions.checkCloudPagePermission(
       options.workspaceId,
       options.docId,
+      'Doc.Update',
       user.id
     );
     const lockFlag = `${COPILOT_LOCKER}:session:${user.id}:${options.workspaceId}`;
-    await using lock = await this.mutex.lock(lockFlag);
+    await using lock = await this.mutex.acquire(lockFlag);
     if (!lock) {
       return new TooManyRequest('Server is busy');
     }
 
     await this.chatSession.checkQuota(user.id);
 
-    const session = await this.chatSession.create({
+    return await this.chatSession.create({
       ...options,
       userId: user.id,
     });
-    return session;
+  }
+
+  @Mutation(() => String, {
+    description: 'Update a chat session',
+  })
+  @CallMetric('ai', 'chat_session_update')
+  async updateCopilotSession(
+    @CurrentUser() user: CurrentUser,
+    @Args({ name: 'options', type: () => UpdateChatSessionInput })
+    options: UpdateChatSessionInput
+  ) {
+    const session = await this.chatSession.get(options.sessionId);
+    if (!session) {
+      throw new CopilotSessionNotFound();
+    }
+    const { workspaceId, docId } = session.config;
+    await this.permissions.checkCloudPagePermission(
+      workspaceId,
+      docId,
+      'Doc.Update',
+      user.id
+    );
+    const lockFlag = `${COPILOT_LOCKER}:session:${user.id}:${workspaceId}`;
+    await using lock = await this.mutex.acquire(lockFlag);
+    if (!lock) {
+      return new TooManyRequest('Server is busy');
+    }
+
+    await this.chatSession.checkQuota(user.id);
+    return await this.chatSession.updateSessionPrompt({
+      ...options,
+      userId: user.id,
+    });
   }
 
   @Mutation(() => String, {
     description: 'Create a chat session',
   })
+  @CallMetric('ai', 'chat_session_fork')
   async forkCopilotSession(
     @CurrentUser() user: CurrentUser,
     @Args({ name: 'options', type: () => ForkChatSessionInput })
@@ -380,26 +431,27 @@ export class CopilotResolver {
     await this.permissions.checkCloudPagePermission(
       options.workspaceId,
       options.docId,
+      'Doc.Update',
       user.id
     );
     const lockFlag = `${COPILOT_LOCKER}:session:${user.id}:${options.workspaceId}`;
-    await using lock = await this.mutex.lock(lockFlag);
+    await using lock = await this.mutex.acquire(lockFlag);
     if (!lock) {
       return new TooManyRequest('Server is busy');
     }
 
     await this.chatSession.checkQuota(user.id);
 
-    const session = await this.chatSession.fork({
+    return await this.chatSession.fork({
       ...options,
       userId: user.id,
     });
-    return session;
   }
 
   @Mutation(() => [String], {
     description: 'Cleanup sessions',
   })
+  @CallMetric('ai', 'chat_session_cleanup')
   async cleanupCopilotSession(
     @CurrentUser() user: CurrentUser,
     @Args({ name: 'options', type: () => DeleteSessionInput })
@@ -408,13 +460,14 @@ export class CopilotResolver {
     await this.permissions.checkCloudPagePermission(
       options.workspaceId,
       options.docId,
+      'Doc.Update',
       user.id
     );
     if (!options.sessionIds.length) {
       return new NotFoundException('Session not found');
     }
     const lockFlag = `${COPILOT_LOCKER}:session:${user.id}:${options.workspaceId}`;
-    await using lock = await this.mutex.lock(lockFlag);
+    await using lock = await this.mutex.acquire(lockFlag);
     if (!lock) {
       return new TooManyRequest('Server is busy');
     }
@@ -428,13 +481,14 @@ export class CopilotResolver {
   @Mutation(() => String, {
     description: 'Create a chat message',
   })
+  @CallMetric('ai', 'chat_message_create')
   async createCopilotMessage(
     @CurrentUser() user: CurrentUser,
     @Args({ name: 'options', type: () => CreateChatMessageInput })
     options: CreateChatMessageInput
   ) {
     const lockFlag = `${COPILOT_LOCKER}:message:${user?.id}:${options.sessionId}`;
-    await using lock = await this.mutex.lock(lockFlag);
+    await using lock = await this.mutex.acquire(lockFlag);
     if (!lock) {
       return new TooManyRequest('Server is busy');
     }

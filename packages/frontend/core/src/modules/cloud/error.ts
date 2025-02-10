@@ -1,3 +1,5 @@
+import type { UserFriendlyError } from '@affine/graphql';
+
 export class NetworkError extends Error {
   constructor(
     public readonly originError: Error,
@@ -13,10 +15,11 @@ export function isNetworkError(error: Error): error is NetworkError {
 }
 
 export class BackendError extends Error {
-  constructor(
-    public readonly originError: Error,
-    public readonly status?: number
-  ) {
+  get status() {
+    return this.originError.status;
+  }
+
+  constructor(public readonly originError: UserFriendlyError) {
     super(`Server error: ${originError.message}`);
     this.stack = originError.stack;
   }

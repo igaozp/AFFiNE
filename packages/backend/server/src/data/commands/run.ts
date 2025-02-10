@@ -5,16 +5,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
+import { once } from 'lodash-es';
 import { Command, CommandRunner } from 'nest-commander';
 
 interface Migration {
   file: string;
   name: string;
+  always?: boolean;
   up: (db: PrismaClient, injector: ModuleRef) => Promise<void>;
   down: (db: PrismaClient, injector: ModuleRef) => Promise<void>;
 }
 
-export async function collectMigrations(): Promise<Migration[]> {
+export const collectMigrations = once(async () => {
   const folder = join(fileURLToPath(import.meta.url), '../../migrations');
 
   const migrationFiles = readdirSync(folder)
@@ -33,6 +35,7 @@ export async function collectMigrations(): Promise<Migration[]> {
         return {
           file,
           name: migration.name,
+          always: migration.always,
           up: migration.up,
           down: migration.down,
         };
@@ -41,7 +44,8 @@ export async function collectMigrations(): Promise<Migration[]> {
   );
 
   return migrations;
-}
+});
+
 @Command({
   name: 'run',
   description: 'Run all pending data migrations',
@@ -65,7 +69,7 @@ export class RunCommand extends CommandRunner {
         },
       });
 
-      if (exists) {
+      if (exists && !migration.always) {
         continue;
       }
 
@@ -100,8 +104,14 @@ export class RunCommand extends CommandRunner {
 
   private async runMigration(migration: Migration) {
     this.logger.log(`Running ${migration.name}...`);
-    const record = await this.db.dataMigration.create({
-      data: {
+    const record = await this.db.dataMigration.upsert({
+      where: {
+        name: migration.name,
+      },
+      update: {
+        startedAt: new Date(),
+      },
+      create: {
         name: migration.name,
         startedAt: new Date(),
       },

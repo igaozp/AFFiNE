@@ -1,31 +1,38 @@
 import { ChatHistoryOrder } from '@affine/graphql';
-import type {
-  BlockSelection,
-  EditorHost,
-  TextSelection,
-} from '@blocksuite/block-std';
 import {
-  type DocMode,
+  BlockSelection,
+  type EditorHost,
+  TextSelection,
+} from '@blocksuite/affine/block-std';
+import type {
+  DocMode,
+  EdgelessRootService,
+  ImageSelection,
+  RootService,
+} from '@blocksuite/affine/blocks';
+import {
+  BlocksUtils,
   DocModeProvider,
-  type EdgelessRootService,
-  type ImageSelection,
-  type PageRootService,
+  EditPropsStore,
+  getSelectedBlocksCommand,
+  NoteDisplayMode,
+  NotificationProvider,
+  RefNodeSlotsProvider,
   TelemetryProvider,
-} from '@blocksuite/blocks';
-import { BlocksUtils, NoteDisplayMode } from '@blocksuite/blocks';
+} from '@blocksuite/affine/blocks';
 import {
   Bound,
-  getElementsBound,
+  getCommonBoundWithRotation,
   type SerializedXYWH,
-} from '@blocksuite/global/utils';
-import { type ChatMessage } from '@blocksuite/presets';
-import type { Doc } from '@blocksuite/store';
+} from '@blocksuite/affine/global/utils';
+import type { Store } from '@blocksuite/affine/store';
 import type { TemplateResult } from 'lit';
 
+import type { ChatMessage } from '../../../blocks';
+import { insertFromMarkdown } from '../../_common';
 import { AIProvider, type AIUserInfo } from '../provider';
 import { reportResponse } from '../utils/action-reporter';
 import { insertBelow, replace } from '../utils/editor-actions';
-import { insertFromMarkdown } from '../utils/markdown-utils';
 import { BlockIcon, CreateIcon, InsertBelowIcon, ReplaceIcon } from './icons';
 
 const { matchFlavours } = BlocksUtils;
@@ -95,26 +102,23 @@ export function constructUserInfoWithMessages(
 }
 
 export async function constructRootChatBlockMessages(
-  doc: Doc,
+  doc: Store,
   forkSessionId: string
 ) {
   // Convert chat messages to AI chat block messages
   const userInfo = await AIProvider.userInfo;
   const forkMessages = await queryHistoryMessages(
-    doc.collection.id,
+    doc.workspace.id,
     doc.id,
     forkSessionId
   );
   return constructUserInfoWithMessages(forkMessages, userInfo);
 }
 
-function getViewportCenter(
-  mode: DocMode,
-  rootService: PageRootService | EdgelessRootService
-) {
+function getViewportCenter(mode: DocMode, rootService: RootService) {
   const center = { x: 400, y: 50 };
   if (mode === 'page') {
-    const viewport = rootService.editPropsStore.getStorage('viewport');
+    const viewport = rootService.std.get(EditPropsStore).getStorage('viewport');
     if (viewport) {
       if ('xywh' in viewport) {
         const bound = Bound.deserialize(viewport.xywh);
@@ -149,7 +153,7 @@ function addAIChatBlock(
 
   const { doc } = host;
   const surfaceBlock = doc
-    .getBlocks()
+    .getStore()
     .find(block => block.flavour === 'affine:surface');
   if (!surfaceBlock) {
     return;
@@ -168,7 +172,7 @@ function addAIChatBlock(
       messages: JSON.stringify(messages),
       index,
       sessionId,
-      rootWorkspaceId: doc.collection.id,
+      rootWorkspaceId: doc.workspace.id,
       rootDocId: doc.id,
     },
     surfaceBlock.id
@@ -178,7 +182,7 @@ function addAIChatBlock(
 }
 
 export function promptDocTitle(host: EditorHost, autofill?: string) {
-  const notification = host.std.getService('affine:page')?.notificationService;
+  const notification = host.std.getOptional(NotificationProvider);
   if (!notification) return Promise.resolve(undefined);
 
   return notification.prompt({
@@ -195,8 +199,11 @@ const REPLACE_SELECTION = {
   icon: ReplaceIcon,
   title: 'Replace selection',
   showWhen: (host: EditorHost) => {
-    const textSelection = host.selection.find('text');
-    const blockSelections = host.selection.filter('block');
+    if (host.std.store.readonly$.value) {
+      return false;
+    }
+    const textSelection = host.selection.find(TextSelection);
+    const blockSelections = host.selection.filter(BlockSelection);
     if (
       (!textSelection || textSelection.from.length === 0) &&
       blockSelections?.length === 0
@@ -213,13 +220,10 @@ const REPLACE_SELECTION = {
   ) => {
     const currentTextSelection = currentSelections.text;
     const currentBlockSelections = currentSelections.blocks;
-    const [_, data] = host.command
-      .chain()
-      .getSelectedBlocks({
-        currentTextSelection,
-        currentBlockSelections,
-      })
-      .run();
+    const [_, data] = host.command.exec(getSelectedBlocksCommand, {
+      currentTextSelection,
+      currentBlockSelections,
+    });
     if (!data.selectedBlocks) return false;
 
     reportResponse('result:replace');
@@ -251,7 +255,12 @@ const REPLACE_SELECTION = {
 const INSERT_BELOW = {
   icon: InsertBelowIcon,
   title: 'Insert below',
-  showWhen: () => true,
+  showWhen: (host: EditorHost) => {
+    if (host.std.store.readonly$.value) {
+      return false;
+    }
+    return true;
+  },
   toast: 'Successfully inserted',
   handler: async (
     host: EditorHost,
@@ -261,14 +270,11 @@ const INSERT_BELOW = {
     const currentTextSelection = currentSelections.text;
     const currentBlockSelections = currentSelections.blocks;
     const currentImageSelections = currentSelections.images;
-    const [_, data] = host.command
-      .chain()
-      .getSelectedBlocks({
-        currentTextSelection,
-        currentBlockSelections,
-        currentImageSelections,
-      })
-      .run();
+    const [_, data] = host.command.exec(getSelectedBlocksCommand, {
+      currentTextSelection,
+      currentBlockSelections,
+      currentImageSelections,
+    });
     if (!data.selectedBlocks) return false;
     reportResponse('result:insert');
     await insertBelow(
@@ -284,7 +290,12 @@ const SAVE_CHAT_TO_BLOCK_ACTION: ChatAction = {
   icon: BlockIcon,
   title: 'Save chat to block',
   toast: 'Successfully saved chat to a block',
-  showWhen: () => true,
+  showWhen: (host: EditorHost) => {
+    if (host.std.store.readonly$.value) {
+      return false;
+    }
+    return true;
+  },
   handler: async (
     host: EditorHost,
     _,
@@ -302,15 +313,15 @@ const SAVE_CHAT_TO_BLOCK_ACTION: ChatAction = {
     const surfaceService = host.std.getService('affine:surface');
     if (!rootService || !surfaceService) return false;
 
-    const { notificationService } = rootService;
+    const notificationService = host.std.getOptional(NotificationProvider);
     const docModeService = host.std.get(DocModeProvider);
     const { layer } = surfaceService;
     const curMode = docModeService.getEditorMode() || 'page';
     const viewportCenter = getViewportCenter(
       curMode,
-      rootService as PageRootService
+      rootService as RootService
     );
-    const newBlockIndex = layer.generateIndex('affine:embed-ai-chat');
+    const newBlockIndex = layer.generateIndex();
     // If current mode is not edgeless, switch to edgeless mode first
     if (curMode !== 'edgeless') {
       // Set mode to edgeless
@@ -327,7 +338,7 @@ const SAVE_CHAT_TO_BLOCK_ACTION: ChatAction = {
 
     try {
       const newSessionId = await AIProvider.forkChat?.({
-        workspaceId: host.doc.collection.id,
+        workspaceId: host.doc.workspace.id,
         docId: host.doc.id,
         sessionId: parentSessionId,
         latestMessageId: messageId,
@@ -380,7 +391,12 @@ const SAVE_CHAT_TO_BLOCK_ACTION: ChatAction = {
 const ADD_TO_EDGELESS_AS_NOTE = {
   icon: CreateIcon,
   title: 'Add to edgeless as note',
-  showWhen: () => true,
+  showWhen: (host: EditorHost) => {
+    if (host.std.store.readonly$.value) {
+      return false;
+    }
+    return true;
+  },
   toast: 'New note created',
   handler: async (host: EditorHost, content: string) => {
     reportResponse('result:add-note');
@@ -395,7 +411,7 @@ const ADD_TO_EDGELESS_AS_NOTE = {
     };
 
     if (elements.length > 0) {
-      const bound = getElementsBound(
+      const bound = getCommonBoundWithRotation(
         elements.map(e => Bound.deserialize(e.xywh))
       );
       const newBound = new Bound(bound.x, bound.maxY + 10, bound.w);
@@ -422,14 +438,15 @@ const CREATE_AS_DOC = {
   toast: 'New doc created',
   handler: (host: EditorHost, content: string) => {
     reportResponse('result:add-page');
-    const newDoc = host.doc.collection.createDoc();
+    const newDoc = host.doc.workspace.createDoc();
     newDoc.load();
     const rootId = newDoc.addBlock('affine:page');
     newDoc.addBlock('affine:surface', {}, rootId);
     const noteId = newDoc.addBlock('affine:note', {}, rootId);
 
-    host.std.getService('affine:page')?.slots.docLinkClicked.emit({
+    host.std.getOptional(RefNodeSlotsProvider)?.docLinkClicked.emit({
       pageId: newDoc.id,
+      host,
     });
     let complete = false;
     (function addContent() {
@@ -452,14 +469,19 @@ const CREATE_AS_DOC = {
 const CREATE_AS_LINKED_DOC = {
   icon: CreateIcon,
   title: 'Create as a linked doc',
-  showWhen: () => true,
+  showWhen: (host: EditorHost) => {
+    if (host.std.store.readonly$.value) {
+      return false;
+    }
+    return true;
+  },
   toast: 'New doc created',
   handler: async (host: EditorHost, content: string) => {
     reportResponse('result:add-page');
 
     const { doc } = host;
     const surfaceBlock = doc
-      .getBlocks()
+      .getStore()
       .find(block => block.flavour === 'affine:surface');
     if (!surfaceBlock) {
       return false;
@@ -476,7 +498,7 @@ const CREATE_AS_LINKED_DOC = {
     }
 
     // Create a new doc and add the content to it
-    const newDoc = host.doc.collection.createDoc();
+    const newDoc = host.doc.workspace.createDoc();
     newDoc.load();
     const rootId = newDoc.addBlock('affine:page');
     newDoc.addBlock('affine:surface', {}, rootId);
@@ -491,7 +513,7 @@ const CREATE_AS_LINKED_DOC = {
     let y = 0;
     if (elements.length) {
       // Calculate the bound of the selected elements first
-      const bound = getElementsBound(
+      const bound = getCommonBoundWithRotation(
         elements.map(e => Bound.deserialize(e.xywh))
       );
       x = bound.x;
@@ -505,7 +527,7 @@ const CREATE_AS_LINKED_DOC = {
       y = viewportCenter.y - height / 2;
     }
 
-    service.addBlock(
+    service.crud.addBlock(
       'affine:embed-linked-doc',
       {
         xywh: `[${x}, ${y}, ${width}, ${height}]`,

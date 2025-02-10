@@ -7,35 +7,32 @@ import {
   useDraggable,
   useDropTarget,
 } from '@affine/component';
-import {
-  appSidebarOpenAtom,
-  appSidebarResizingAtom,
-} from '@affine/core/components/app-sidebar';
-import { appSidebarWidthAtom } from '@affine/core/components/app-sidebar/index.jotai';
-import { WindowsAppControls } from '@affine/core/components/pure/header/windows-app-controls';
-import { useAsyncCallback } from '@affine/core/hooks/affine-async-hooks';
-import { useCatchEventCallback } from '@affine/core/hooks/use-catch-event-hook';
-import { track } from '@affine/core/mixpanel';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { useCatchEventCallback } from '@affine/core/components/hooks/use-catch-event-hook';
 import type { AffineDNDData } from '@affine/core/types/dnd';
-import { apis, events } from '@affine/electron-api';
 import { useI18n } from '@affine/i18n';
+import { track } from '@affine/track';
 import { CloseIcon, PlusIcon, RightSidebarIcon } from '@blocksuite/icons/rc';
 import {
   useLiveData,
   useService,
   useServiceOptional,
 } from '@toeverything/infra';
+import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
-import { useAtomValue } from 'jotai';
 import { partition } from 'lodash-es';
 import {
   Fragment,
   type MouseEventHandler,
   type ReactNode,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 
+import { AppSidebarService } from '../../app-sidebar';
+import { DesktopApiService } from '../../desktop-api';
+import { resolveLinkToDoc } from '../../navigation';
 import { iconNameToIcon } from '../../workbench/constants';
 import { DesktopStateSynchronizer } from '../../workbench/services/desktop-state-synchronizer';
 import {
@@ -44,7 +41,7 @@ import {
 } from '../services/app-tabs-header-service';
 import * as styles from './styles.css';
 
-const TabSupportType = ['collection', 'tag', 'doc'];
+const TabSupportType = new Set(['collection', 'tag', 'doc']);
 
 const tabCanDrop =
   (tab?: TabStatus): NonNullable<DropTargetOptions<AffineDNDData>['canDrop']> =>
@@ -58,7 +55,7 @@ const tabCanDrop =
 
     if (
       ctx.source.data.entity?.type &&
-      TabSupportType.includes(ctx.source.data.entity?.type)
+      TabSupportType.has(ctx.source.data.entity?.type)
     ) {
       return true;
     }
@@ -66,71 +63,24 @@ const tabCanDrop =
     return false;
   };
 
-const WorkbenchTab = ({
+const WorkbenchView = ({
   workbench,
-  active: tabActive,
+  view,
+  activeViewIndex,
   tabsLength,
-  dnd,
-  onDrop,
+  viewIdx,
+  tabActive,
 }: {
   workbench: TabStatus;
-  active: boolean;
+  view: TabStatus['views'][number];
+  activeViewIndex: number;
   tabsLength: number;
+  viewIdx: number;
+  tabActive: boolean;
   dnd?: boolean;
-  onDrop?: (data: DropTargetDropEvent<AffineDNDData>) => void;
 }) => {
-  useServiceOptional(DesktopStateSynchronizer);
   const tabsHeaderService = useService(AppTabsHeaderService);
-  const activeViewIndex = workbench.activeViewIndex ?? 0;
-  const onContextMenu = useAsyncCallback(
-    async (viewIdx: number) => {
-      const action = await tabsHeaderService.showContextMenu?.(
-        workbench.id,
-        viewIdx
-      );
-      switch (action?.type) {
-        case 'open-in-split-view': {
-          track.$.appTabsHeader.$.tabAction({
-            control: 'contextMenu',
-            action: 'openInSplitView',
-          });
-          break;
-        }
-        case 'separate-view': {
-          track.$.appTabsHeader.$.tabAction({
-            control: 'contextMenu',
-            action: 'separateTabs',
-          });
-          break;
-        }
-        case 'pin-tab': {
-          if (action.payload.shouldPin) {
-            track.$.appTabsHeader.$.tabAction({
-              control: 'contextMenu',
-              action: 'pin',
-            });
-          } else {
-            track.$.appTabsHeader.$.tabAction({
-              control: 'contextMenu',
-              action: 'unpin',
-            });
-          }
-          break;
-        }
-        // fixme: when close tab the view may already be gc'ed
-        case 'close-tab': {
-          track.$.appTabsHeader.$.tabAction({
-            control: 'contextMenu',
-            action: 'close',
-          });
-          break;
-        }
-        default:
-          break;
-      }
-    },
-    [tabsHeaderService, workbench.id]
-  );
+
   const onActivateView = useAsyncCallback(
     async (viewIdx: number) => {
       if (viewIdx === activeViewIndex && tabActive) {
@@ -151,6 +101,15 @@ const WorkbenchTab = ({
     },
     [activeViewIndex, tabActive, tabsHeaderService, workbench.id]
   );
+
+  const handleClick: MouseEventHandler = useCatchEventCallback(
+    async e => {
+      e.stopPropagation();
+      onActivateView(viewIdx);
+    },
+    [onActivateView, viewIdx]
+  );
+
   const handleAuxClick: MouseEventHandler = useCatchEventCallback(
     async e => {
       if (e.button === 1) {
@@ -163,6 +122,106 @@ const WorkbenchTab = ({
     },
     [tabsHeaderService, workbench.id]
   );
+
+  const onContextMenu = useAsyncCallback(async () => {
+    const action = await tabsHeaderService.showContextMenu?.(
+      workbench.id,
+      viewIdx
+    );
+    switch (action?.type) {
+      case 'open-in-split-view': {
+        track.$.appTabsHeader.$.tabAction({
+          control: 'contextMenu',
+          action: 'openInSplitView',
+        });
+        break;
+      }
+      case 'separate-view': {
+        track.$.appTabsHeader.$.tabAction({
+          control: 'contextMenu',
+          action: 'separateTabs',
+        });
+        break;
+      }
+      case 'pin-tab': {
+        if (action.payload.shouldPin) {
+          track.$.appTabsHeader.$.tabAction({
+            control: 'contextMenu',
+            action: 'pin',
+          });
+        } else {
+          track.$.appTabsHeader.$.tabAction({
+            control: 'contextMenu',
+            action: 'unpin',
+          });
+        }
+        break;
+      }
+      // fixme: when close tab the view may already be gc'ed
+      case 'close-tab': {
+        track.$.appTabsHeader.$.tabAction({
+          control: 'contextMenu',
+          action: 'close',
+        });
+        break;
+      }
+      default:
+        break;
+    }
+  }, [tabsHeaderService, viewIdx, workbench.id]);
+
+  const contentNode = useMemo(() => {
+    return (
+      <>
+        <div className={styles.labelIcon}>
+          {workbench.ready || !workbench.loaded ? (
+            iconNameToIcon[view.iconName ?? 'allDocs']
+          ) : (
+            <Loading />
+          )}
+        </div>
+        {!view.title ? null : (
+          <div
+            title={view.title}
+            className={styles.splitViewLabelText}
+            data-padding-right={tabsLength > 1 && !workbench.pinned}
+          >
+            {view.title}
+          </div>
+        )}
+      </>
+    );
+  }, [workbench, view, tabsLength]);
+  return (
+    <button
+      data-testid="split-view-label"
+      className={styles.splitViewLabel}
+      data-active={activeViewIndex === viewIdx && tabActive}
+      onContextMenu={onContextMenu}
+      onAuxClick={handleAuxClick}
+      onClick={handleClick}
+    >
+      {contentNode}
+    </button>
+  );
+};
+
+const WorkbenchTab = ({
+  workbench,
+  active: tabActive,
+  tabsLength,
+  dnd,
+  onDrop,
+}: {
+  workbench: TabStatus;
+  active: boolean;
+  tabsLength: number;
+  dnd?: boolean;
+  onDrop?: (data: DropTargetDropEvent<AffineDNDData>) => void;
+}) => {
+  useServiceOptional(DesktopStateSynchronizer);
+  const tabsHeaderService = useService(AppTabsHeaderService);
+  const activeViewIndex = workbench.activeViewIndex ?? 0;
 
   const handleCloseTab = useCatchEventCallback(async () => {
     await tabsHeaderService.closeTab?.(workbench.id);
@@ -179,25 +238,57 @@ const WorkbenchTab = ({
       },
       onDrop,
       dropEffect: 'move',
-      canDrop: tabCanDrop(workbench),
+      canDrop: dnd ? tabCanDrop(workbench) : false,
       isSticky: true,
+      allowExternal: true,
     }),
-    [onDrop, workbench]
+    [dnd, onDrop, workbench]
   );
 
-  const { dragRef } = useDraggable<AffineDNDData>(
-    () => ({
+  const { dragRef } = useDraggable<AffineDNDData>(() => {
+    const urls = workbench.views.map(view => {
+      const url = new URL(
+        workbench.basename + (view.path?.pathname ?? ''),
+        location.origin
+      );
+      url.search = view.path?.search ?? '';
+      return url.toString();
+    });
+
+    let entity: AffineDNDData['draggable']['entity'];
+
+    for (const url of urls) {
+      const maybeDocLink = resolveLinkToDoc(url);
+      if (maybeDocLink && maybeDocLink.docId) {
+        entity = {
+          type: 'doc',
+          id: maybeDocLink.docId,
+        };
+      }
+    }
+
+    return {
       canDrag: dnd,
       data: {
         from: {
           at: 'app-header:tabs',
           tabId: workbench.id,
         },
+        entity,
       },
       dragPreviewPosition: 'pointer-outside',
-    }),
-    [dnd, workbench.id]
-  );
+      toExternalData: () => {
+        return {
+          'text/uri-list': urls.join('\n'),
+        };
+      },
+      onDragStart: () => {
+        track.$.appTabsHeader.$.dragStart({
+          type: 'tab',
+        });
+      },
+    };
+  }, [dnd, workbench.basename, workbench.id, workbench.views]);
 
   return (
     <div
@@ -213,41 +304,25 @@ const WorkbenchTab = ({
         data-active={tabActive}
         data-pinned={workbench.pinned}
         className={styles.tab}
+        style={assignInlineVars({
+          [styles.tabMaxWidth]: `${Math.max(
+            workbench.views.length * 52,
+            workbench.pinned ? 64 : 200
+          )}px`,
+        })}
       >
         {workbench.views.map((view, viewIdx) => {
           return (
             <Fragment key={view.id}>
-              <button
-                key={view.id}
-                data-testid="split-view-label"
-                className={styles.splitViewLabel}
-                data-active={activeViewIndex === viewIdx && tabActive}
-                onContextMenu={() => {
-                  onContextMenu(viewIdx);
-                }}
-                onAuxClick={handleAuxClick}
-                onClick={e => {
-                  e.stopPropagation();
-                  onActivateView(viewIdx);
-                }}
-              >
-                <div className={styles.labelIcon}>
-                  {workbench.ready || !workbench.loaded ? (
-                    iconNameToIcon[view.iconName ?? 'allDocs']
-                  ) : (
-                    <Loading />
-                  )}
-                </div>
-                {workbench.pinned || !view.title ? null : (
-                  <div
-                    title={view.title}
-                    className={styles.splitViewLabelText}
-                    data-padding-right={tabsLength > 1 && !workbench.pinned}
-                  >
-                    {view.title}
-                  </div>
-                )}
-              </button>
+              <WorkbenchView
+                workbench={workbench}
+                view={view}
+                activeViewIndex={activeViewIndex}
+                tabsLength={workbench.views.length}
+                viewIdx={viewIdx}
+                tabActive={tabActive}
+                dnd={dnd}
+              />
 
               {viewIdx !== workbench.views.length - 1 ? (
                 <div className={styles.splitViewSeparator} />
@@ -255,19 +330,17 @@ const WorkbenchTab = ({
             </Fragment>
           );
         })}
-        {!workbench.pinned ? (
-          <div className={styles.tabCloseButtonWrapper}>
-            {tabsLength > 1 ? (
-              <button
-                data-testid="close-tab-button"
-                className={styles.tabCloseButton}
-                onClick={handleCloseTab}
-              >
-                <CloseIcon />
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+        <div className={styles.tabCloseButtonWrapper}>
+          {tabsLength > 1 && !workbench.pinned ? (
+            <button
+              data-testid="close-tab-button"
+              className={styles.tabCloseButton}
+              onClick={handleCloseTab}
+            >
+              <CloseIcon />
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className={styles.dropIndicator} data-edge={closestEdge} />
     </div>
@@ -275,17 +348,18 @@ const WorkbenchTab = ({
 };
 
 const useIsFullScreen = () => {
+  const desktopApi = useServiceOptional(DesktopApiService);
   const [fullScreen, setFullScreen] = useState(false);
 
   useEffect(() => {
-    apis?.ui
+    desktopApi?.handler.ui
       .isFullScreen()
       .then(setFullScreen)
       .then(() => {
-        events?.ui.onFullScreen(setFullScreen);
+        desktopApi?.events.ui.onFullScreen(setFullScreen);
       })
       .catch(console.error);
-  }, []);
+  }, [desktopApi?.events.ui, desktopApi?.handler.ui]);
   return fullScreen;
 };
 
@@ -301,11 +375,16 @@ export const AppTabsHeader = ({
   left?: ReactNode;
 }) => {
   const t = useI18n();
-  const sidebarWidth = useAtomValue(appSidebarWidthAtom);
-  const sidebarOpen = useAtomValue(appSidebarOpenAtom);
-  const sidebarResizing = useAtomValue(appSidebarResizingAtom);
-  const isMacosDesktop = environment.isElectron && environment.isMacOs;
+  const appSidebarService = useService(AppSidebarService).sidebar;
+  const sidebarWidth = useLiveData(appSidebarService.width$);
+  const sidebarOpen = useLiveData(appSidebarService.open$);
+  const sidebarResizing = useLiveData(appSidebarService.resizing$);
+
+  const isMacosDesktop = BUILD_CONFIG.isElectron && environment.isMacOs;
+  const isWindowsDesktop = BUILD_CONFIG.isElectron && environment.isWindows;
   const fullScreen = useIsFullScreen();
+
+  const desktopApi = useService(DesktopApiService);
 
   const tabsHeaderService = useService(AppTabsHeaderService);
   const tabs = useLiveData(tabsHeaderService.tabsStatus$);
@@ -326,9 +405,9 @@ export const AppTabsHeader = ({
 
   useEffect(() => {
     if (mode === 'app') {
-      apis?.ui.pingAppLayoutReady().catch(console.error);
+      desktopApi.handler.ui.pingAppLayoutReady().catch(console.error);
     }
-  }, [mode]);
+  }, [mode, desktopApi]);
 
   const onDrop = useAsyncCallback(
     async (data: DropTargetDropEvent<AffineDNDData>, targetId?: string) => {
@@ -413,7 +492,7 @@ export const AppTabsHeader = ({
       className={clsx(styles.root, className)}
       style={style}
       data-mode={mode}
-      data-is-windows={environment.isElectron && environment.isWindows}
+      data-is-windows={isWindowsDesktop}
     >
       <div
         style={{
@@ -474,9 +553,9 @@ export const AppTabsHeader = ({
       <IconButton size="24" onClick={onToggleRightSidebar}>
         <RightSidebarIcon />
       </IconButton>
-      {environment.isElectron && environment.isWindows ? (
-        <WindowsAppControls />
-      ) : null}
+      {isWindowsDesktop && (
+        <div className={styles.windowsAppControlsPlaceholder} />
+      )}
     </div>
   );
 };

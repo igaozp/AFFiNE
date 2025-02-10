@@ -2,12 +2,15 @@ import type {
   BlockSelection,
   EditorHost,
   TextSelection,
-} from '@blocksuite/block-std';
-import { WithDisposable } from '@blocksuite/block-std';
-import { createButtonPopper, Tooltip } from '@blocksuite/blocks';
-import { noop } from '@blocksuite/global/utils';
+} from '@blocksuite/affine/block-std';
+import {
+  createButtonPopper,
+  NotificationProvider,
+  Tooltip,
+} from '@blocksuite/affine/blocks';
+import { noop, WithDisposable } from '@blocksuite/affine/global/utils';
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
+import { property, query, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 
 import { type ChatAction } from '../../_common/chat-actions-handle';
@@ -16,7 +19,6 @@ import { copyText } from '../../utils/editor-actions';
 
 noop(Tooltip);
 
-@customElement('chat-copy-more')
 export class ChatCopyMore extends WithDisposable(LitElement) {
   static override styles = css`
     .copy-more {
@@ -129,7 +131,7 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
 
   private readonly _notifySuccess = (title: string) => {
     if (!this._rootService) return;
-    const { notificationService } = this._rootService;
+    const notificationService = this.host.std.getOptional(NotificationProvider);
     notificationService?.notify({
       title: title,
       accent: 'success',
@@ -176,13 +178,17 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
                   this._notifySuccess('Copied to clipboard');
                 }
               }}
+              data-testid="action-copy-button"
             >
               ${CopyIcon}
               <affine-tooltip>Copy</affine-tooltip>
             </div>`
           : nothing}
         ${isLast
-          ? html`<div @click=${() => this.retry()}>
+          ? html`<div
+              @click=${() => this.retry()}
+              data-testid="action-retry-button"
+            >
               ${RetryIcon}
               <affine-tooltip>Retry</affine-tooltip>
             </div>`

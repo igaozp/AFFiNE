@@ -3,16 +3,13 @@ import {
   type DropTargetOptions,
   toast,
 } from '@affine/component';
-import { track } from '@affine/core/mixpanel';
+import { GlobalContextService } from '@affine/core/modules/global-context';
 import type { Tag } from '@affine/core/modules/tag';
 import { TagService } from '@affine/core/modules/tag';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { useI18n } from '@affine/i18n';
-import {
-  GlobalContextService,
-  useLiveData,
-  useServices,
-} from '@toeverything/infra';
+import { track } from '@affine/track';
+import { useLiveData, useServices } from '@toeverything/infra';
 import clsx from 'clsx';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -99,6 +96,9 @@ export const ExplorerTagNode = ({
           tagRecord.tag(data.source.data.entity.id);
           track.$.navigationPanel.tags.tagDoc({
             control: 'drag',
+          });
+          track.$.navigationPanel.tags.drop({
+            type: data.source.data.entity.type,
           });
         } else {
           toast(t['com.affine.rootAppSidebar.tag.doc-only']());

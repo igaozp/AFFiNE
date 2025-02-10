@@ -1,6 +1,6 @@
 query getWorkspacePublicPages($workspaceId: String!) {
   workspace(id: $workspaceId) {
-    publicPages {
+    publicDocs {
       id
       mode
     }

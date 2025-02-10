@@ -1,13 +1,10 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.web.json",
   "compilerOptions": {
-    "module": "ESNext",
-    "target": "ESNext",
-    "sourceMap": true,
-    "composite": true,
-    "noEmit": false,
-    "outDir": "lib"
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": ["./src"],
-  "exclude": ["node_modules"]
+  "references": []
 }

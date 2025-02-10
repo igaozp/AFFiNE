@@ -1,0 +1,19 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "./dist"
+  },
+  "include": ["**.spec.ts", "**.test.ts", "**/**.ts"],
+  "exclude": ["dist"],
+  "references": [
+    { "path": "../affine/components" },
+    { "path": "../affine/model" },
+    { "path": "../affine/shared" },
+    { "path": "../framework/block-std" },
+    { "path": "../framework/global" },
+    { "path": "../framework/inline" },
+    { "path": "../presets" },
+    { "path": "../framework/store" }
+  ]
+}

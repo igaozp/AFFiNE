@@ -1,0 +1,23 @@
+name: 'Prepare Server Test Environment'
+description: 'Prepare Server Test Environment'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Initialize database
+      shell: bash
+      run: |
+        psql -h localhost -U postgres -c "CREATE DATABASE affine;"
+        psql -h localhost -U postgres -c "CREATE USER affine WITH PASSWORD 'affine';"
+        psql -h localhost -U postgres -c "ALTER USER affine WITH SUPERUSER;"
+      env:
+        PGPASSWORD: affine
+
+    - name: Run init-db script
+      shell: bash
+      env:
+        NODE_ENV: test
+      run: |
+        yarn affine @affine/server prisma generate
+        yarn affine @affine/server prisma db push
+        yarn affine @affine/server data-migration run

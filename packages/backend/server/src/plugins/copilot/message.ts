@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
 
-import { SessionCache } from '../../fundamentals';
+import { SessionCache } from '../../base';
 import { SubmittedMessage, SubmittedMessageSchema } from './types';
 
 const CHAT_MESSAGE_KEY = 'chat-message';

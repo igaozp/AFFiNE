@@ -1,0 +1,135 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+
+plugins {
+    alias libs.plugins.android.application
+    alias libs.plugins.kotlin.android
+    alias libs.plugins.rust.android
+}
+
+apply from: 'capacitor.build.gradle'
+
+android {
+    namespace "app.affine.pro"
+    compileSdk rootProject.ext.compileSdkVersion
+    ndkVersion = new File(sdkDirectory, "ndk").listFiles().sort().last().name
+    defaultConfig {
+        applicationId "app.affine.pro"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+            // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+            // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
+        }
+    }
+    buildFeatures {
+        buildConfig true
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    flavorDimensions = ['chanel']
+    productFlavors {
+        stable {
+            buildConfigField 'String', 'BASE_URL', '"https://app.affine.pro"'
+            resValue 'string', 'host', '"app.affine.pro"'
+        }
+        canary {
+            buildConfigField 'String', 'BASE_URL', '"https://affine.fail"'
+            resValue 'string', 'host', '"affine.fail"'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+repositories {
+    flatDir {
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation project(':capacitor-android')
+    implementation project(':capacitor-cordova-android-plugins')
+    implementation project(':service')
+    implementation libs.kotlinx.coroutines.core
+    implementation libs.androidx.appcompat
+    implementation libs.androidx.browser
+    implementation libs.androidx.coordinatorlayout
+    implementation libs.androidx.core.splashscreen
+    implementation libs.androidx.core.ktx
+    implementation libs.apollo.runtime
+    implementation libs.jna
+    testImplementation libs.junit
+    androidTestImplementation libs.androidx.junit
+    androidTestImplementation libs.androidx.espresso.core
+}
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch (Exception ignored) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+cargo {
+    module = "../../../../mobile-native"
+    libname = "affine_mobile_native"
+    targets = ["arm64"]
+    pythonCommand = "python3.12"
+    targetDirectory = "../../../../../../target"
+    apiLevel = 28
+    targetIncludes = ["libaffine_mobile_native.so"]
+    profile = "release"
+}
+
+kotlin {
+    compilerOptions {
+        apiVersion = KotlinVersion.KOTLIN_2_1
+        jvmTarget = JvmTarget.JVM_21
+    }
+}
+
+afterEvaluate {
+    // The `cargoBuild` task isn't available until after evaluation.
+    android.applicationVariants.configureEach { variant ->
+        def productFlavor = ""
+        variant.productFlavors.each {
+            productFlavor += "${it.name.capitalize()}"
+        }
+        def buildType = "${variant.buildType.name.capitalize()}"
+        tasks["generate${productFlavor}${buildType}Assets"].dependsOn(tasks["cargoBuild"])
+    }
+}
+
+android.applicationVariants.configureEach { variant ->
+    def t = tasks.register("generate${variant.name.capitalize()}UniFFIBindings", Exec) {
+        workingDir "${project.projectDir}"
+        // Runs the bindings generation, note that you must have uniffi-bindgen installed and in your PATH environment variable
+        commandLine "${System.getenv("CARGO_HOME")}/bin/cargo", 'run', '--bin', 'uniffi-bindgen', 'generate', '--library', "${buildDir}/rustJniLibs/android/arm64-v8a/libaffine_mobile_native.so", '--language', 'kotlin', '--out-dir', "${project.projectDir}/src/main/java"
+        dependsOn("cargoBuild")
+    }
+    variant.javaCompileProvider.get().dependsOn(t)
+}
+
+tasks.whenTaskAdded { task ->
+    if ((task.name == 'javaPreCompileDebug' || task.name == 'javaPreCompileRelease')) {
+        task.dependsOn 'cargoBuild'
+    }
+}

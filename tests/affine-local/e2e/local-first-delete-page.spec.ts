@@ -35,10 +35,8 @@ test('page delete -> refresh page -> it should be disappear', async ({
   await getPageItem(page, newPageId).getByTestId('delete-page-button').click();
   await page.getByText('Delete permanently?').dblclick();
   await page.getByRole('button', { name: 'Delete' }).click();
-  await page.reload();
   expect(page.getByText("There's no page here yet")).not.toBeUndefined();
   await page.getByTestId('all-pages').click();
-  await page.reload();
 
   const currentWorkspace = await workspace.current();
 
@@ -73,8 +71,7 @@ test('page delete -> create new page -> refresh page -> new page should be appea
     .click();
   await page.getByText('Delete permanently?').dblclick();
   await page.getByRole('button', { name: 'Delete' }).click();
-  await page.reload();
-  expect(page.getByText("There's no page here yet")).not.toBeUndefined();
+  expect(page.getByText('Deleted docs will appear here')).not.toBeUndefined();
   await page.getByTestId('all-pages').click();
 
   await clickNewPageButton(page);
@@ -89,7 +86,6 @@ test('page delete -> create new page -> refresh page -> new page should be appea
   await page.waitForTimeout(1000);
   const newPageId2 = getCurrentDocIdFromUrl(page);
   await page.getByTestId('all-pages').click();
-  await page.reload();
   await getPageItem(page, newPageId1).click();
   await page.getByTestId('all-pages').click();
   await getPageItem(page, newPageId2).click();
@@ -152,8 +148,6 @@ test('delete multiple pages -> create multiple pages -> refresh', async ({
   await page.getByText('Delete permanently?').dblclick();
   await page.getByRole('button', { name: 'Delete' }).click();
   await page.getByTestId('all-pages').click();
-
-  await page.reload();
 
   const currentWorkspace = await workspace.current();
 

@@ -2,8 +2,8 @@ import type { MouseEvent as ReactMouseEvent, RefObject } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 
 interface UseZoomControlsProps {
-  zoomRef: RefObject<HTMLDivElement>;
-  imageRef: RefObject<HTMLImageElement>;
+  zoomRef: RefObject<HTMLDivElement | null>;
+  imageRef: RefObject<HTMLImageElement | null>;
 }
 
 export const useZoomControls = ({

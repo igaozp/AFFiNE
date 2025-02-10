@@ -20,9 +20,9 @@ export const DesktopMenuSub = ({
   } = {},
 }: MenuSubProps) => {
   const { className, children, otherProps } = useMenuItem({
-    ...triggerOptions,
     children: propsChildren,
     suffixIcon: <ArrowRightSmallIcon />,
+    ...triggerOptions,
   });
 
   return (

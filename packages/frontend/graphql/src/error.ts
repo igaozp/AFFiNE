@@ -8,18 +8,28 @@ export interface UserFriendlyErrorResponse {
   type: string;
   name: ErrorNames;
   message: string;
-  args?: any;
+  data?: any;
   stacktrace?: string;
 }
 
-export class UserFriendlyError implements UserFriendlyErrorResponse {
-  status = this.response.status;
-  code = this.response.code;
-  type = this.response.type;
-  name = this.response.name;
-  message = this.response.message;
-  args = this.response.args;
-  stacktrace = this.response.stacktrace;
+export class UserFriendlyError
+  extends Error
+  implements UserFriendlyErrorResponse
+{
+  readonly status = this.response.status;
+  readonly code = this.response.code;
+  readonly type = this.response.type;
+  readonly rawName = this.response.name;
+  override readonly message = this.response.message;
+  readonly data = this.response.data;
+  readonly stacktrace = this.response.stacktrace;
+
+  override get name() {
+    if (this.rawName in ErrorNames) {
+      return this.rawName;
+    }
+    return ErrorNames.INTERNAL_SERVER_ERROR;
+  }
 
   static fromAnyError(response: any) {
     if (response instanceof GraphQLError) {
@@ -51,7 +61,9 @@ export class UserFriendlyError implements UserFriendlyErrorResponse {
     });
   }
 
-  constructor(private readonly response: UserFriendlyErrorResponse) {}
+  constructor(private readonly response: UserFriendlyErrorResponse) {
+    super(response.message);
+  }
 }
 
 export class GraphQLError extends BaseGraphQLError {

@@ -2,7 +2,7 @@ import {
   defineRuntimeConfig,
   defineStartupConfig,
   ModuleConfig,
-} from '../../fundamentals/config';
+} from '../../base/config';
 
 interface DocStartupConfigurations {
   manager: {
@@ -46,7 +46,7 @@ interface DocRuntimeConfigurations {
   experimentalMergeWithYOcto: boolean;
 }
 
-declare module '../../fundamentals/config' {
+declare module '../../base/config' {
   interface AppConfig {
     doc: ModuleConfig<DocStartupConfigurations, DocRuntimeConfigurations>;
   }

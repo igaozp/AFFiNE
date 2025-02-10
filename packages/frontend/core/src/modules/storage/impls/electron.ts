@@ -1,58 +1,66 @@
-import { sharedStorage } from '@affine/electron-api';
-import type { GlobalCache, GlobalState } from '@toeverything/infra';
 import { Observable } from 'rxjs';
 
-// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-const ensureSharedStorage = sharedStorage!;
+import type { DesktopApiService } from '../../desktop-api';
+import type { GlobalCache, GlobalState } from '../providers/global';
 
 export class ElectronGlobalState implements GlobalState {
+  constructor(private readonly electronApi: DesktopApiService) {}
+
   keys(): string[] {
-    return ensureSharedStorage.globalState.keys();
+    return this.electronApi.sharedStorage.globalState.keys();
   }
   get<T>(key: string): T | undefined {
-    return ensureSharedStorage.globalState.get(key);
+    return this.electronApi.sharedStorage.globalState.get(key);
   }
   watch<T>(key: string) {
     return new Observable<T | undefined>(subscriber => {
-      const unsubscribe = ensureSharedStorage.globalState.watch<T>(key, i => {
-        subscriber.next(i);
-      });
+      const unsubscribe = this.electronApi.sharedStorage.globalState.watch<T>(
+        key,
+        i => {
+          subscriber.next(i);
+        }
+      );
       return () => unsubscribe();
     });
   }
   set<T>(key: string, value: T): void {
-    ensureSharedStorage.globalState.set(key, value);
+    this.electronApi.sharedStorage.globalState.set(key, value);
   }
   del(key: string): void {
-    ensureSharedStorage.globalState.del(key);
+    this.electronApi.sharedStorage.globalState.del(key);
   }
   clear(): void {
-    ensureSharedStorage.globalState.clear();
+    this.electronApi.sharedStorage.globalState.clear();
   }
 }
 
 export class ElectronGlobalCache implements GlobalCache {
+  constructor(private readonly electronApi: DesktopApiService) {}
+
   keys(): string[] {
-    return ensureSharedStorage.globalCache.keys();
+    return this.electronApi.sharedStorage.globalCache.keys();
   }
   get<T>(key: string): T | undefined {
-    return ensureSharedStorage.globalCache.get(key);
+    return this.electronApi.sharedStorage.globalCache.get(key);
   }
   watch<T>(key: string) {
     return new Observable<T | undefined>(subscriber => {
-      const unsubscribe = ensureSharedStorage.globalCache.watch<T>(key, i => {
-        subscriber.next(i);
-      });
+      const unsubscribe = this.electronApi.sharedStorage.globalCache.watch<T>(
+        key,
+        i => {
+          subscriber.next(i);
+        }
+      );
       return () => unsubscribe();
     });
   }
   set<T>(key: string, value: T): void {
-    ensureSharedStorage.globalCache.set(key, value);
+    this.electronApi.sharedStorage.globalCache.set(key, value);
   }
   del(key: string): void {
-    ensureSharedStorage.globalCache.del(key);
+    this.electronApi.sharedStorage.globalCache.del(key);
   }
   clear(): void {
-    ensureSharedStorage.globalCache.clear();
+    this.electronApi.sharedStorage.globalCache.clear();
   }
 }

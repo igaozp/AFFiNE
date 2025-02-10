@@ -30,6 +30,7 @@ const RootEmptyReady = ({ onDrop }: Omit<RootEmptyProps, 'isLoading'>) => {
         },
         onDrop: onDrop,
         canDrop: favoriteRootCanDrop,
+        allowExternal: true,
       }),
       [onDrop]
     );

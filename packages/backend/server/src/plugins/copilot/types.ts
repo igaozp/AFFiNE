@@ -8,7 +8,9 @@ import type { ChatPrompt } from './prompt';
 export enum AvailableModels {
   // text to text
   Gpt4Omni = 'gpt-4o',
+  Gpt4Omni0806 = 'gpt-4o-2024-08-06',
   Gpt4OmniMini = 'gpt-4o-mini',
+  Gpt4OmniMini0718 = 'gpt-4o-mini-2024-07-18',
   // embeddings
   TextEmbedding3Large = 'text-embedding-3-large',
   TextEmbedding3Small = 'text-embedding-3-small',
@@ -48,10 +50,7 @@ export const ChatMessageRole = Object.values(AiPromptRole) as [
 const PureMessageSchema = z.object({
   content: z.string(),
   attachments: z.array(z.string()).optional().nullable(),
-  params: z
-    .record(z.union([z.string(), z.array(z.string()), z.record(z.any())]))
-    .optional()
-    .nullable(),
+  params: z.record(z.any()).optional().nullable(),
 });
 
 export const PromptMessageSchema = PureMessageSchema.extend({
@@ -121,6 +120,11 @@ export interface ChatSessionOptions {
   promptName: string;
 }
 
+export interface ChatSessionPromptUpdateOptions
+  extends Pick<ChatSessionState, 'sessionId' | 'userId'> {
+  promptName: string;
+}
+
 export interface ChatSessionForkOptions
   extends Omit<ChatSessionOptions, 'promptName'> {
   sessionId: string;
@@ -152,6 +156,7 @@ export type ListHistoriesOptions = {
 export enum CopilotProviderType {
   FAL = 'fal',
   OpenAI = 'openai',
+  Perplexity = 'perplexity',
   // only for test
   Test = 'test',
 }

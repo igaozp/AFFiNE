@@ -1,3 +1,5 @@
+import './config';
+
 import { AuthModule } from '../../core/auth';
 import { ServerFeature } from '../../core/config';
 import { Plugin } from '../registry';

@@ -1,29 +1,19 @@
 import { AIProvider } from '@affine/core/blocksuite/presets/ai';
-import { track } from '@affine/core/mixpanel';
-import { appInfo } from '@affine/electron-api';
 import type { OAuthProviderType } from '@affine/graphql';
-import {
-  ApplicationFocused,
-  ApplicationStarted,
-  createEvent,
-  OnEvent,
-  Service,
-} from '@toeverything/infra';
+import { track } from '@affine/track';
+import { OnEvent, Service } from '@toeverything/infra';
 import { distinctUntilChanged, map, skip } from 'rxjs';
 
+import { ApplicationFocused } from '../../lifecycle';
+import type { UrlService } from '../../url';
 import { type AuthAccountInfo, AuthSession } from '../entities/session';
+import { BackendError } from '../error';
+import { AccountChanged } from '../events/account-changed';
+import { AccountLoggedIn } from '../events/account-logged-in';
+import { AccountLoggedOut } from '../events/account-logged-out';
+import { ServerStarted } from '../events/server-started';
 import type { AuthStore } from '../stores/auth';
 import type { FetchService } from './fetch';
-
-// Emit when account changed
-export const AccountChanged = createEvent<AuthAccountInfo | null>(
-  'AccountChanged'
-);
-
-export const AccountLoggedIn = createEvent<AuthAccountInfo>('AccountLoggedIn');
-
-export const AccountLoggedOut =
-  createEvent<AuthAccountInfo>('AccountLoggedOut');
 
 function toAIUserInfo(account: AuthAccountInfo | null) {
   if (!account) return null;
@@ -35,17 +25,19 @@ function toAIUserInfo(account: AuthAccountInfo | null) {
   };
 }
 
-@OnEvent(ApplicationStarted, e => e.onApplicationStart)
 @OnEvent(ApplicationFocused, e => e.onApplicationFocused)
+@OnEvent(ServerStarted, e => e.onServerStarted)
 export class AuthService extends Service {
   session = this.framework.createEntity(AuthSession);
 
   constructor(
     private readonly fetchService: FetchService,
-    private readonly store: AuthStore
+    private readonly store: AuthStore,
+    private readonly urlService: UrlService
   ) {
     super();
 
+    // TODO(@forehalo): make AIProvider a standalone service passed to AI elements by props
     AIProvider.provide('userInfo', () => {
       return toAIUserInfo(this.session.account$.value);
     });
@@ -60,17 +52,18 @@ export class AuthService extends Service {
         skip(1) // skip the initial value
       )
       .subscribe(({ account }) => {
+        AIProvider.slots.userInfo.emit(toAIUserInfo(account));
+
         if (account === null) {
           this.eventBus.emit(AccountLoggedOut, account);
         } else {
           this.eventBus.emit(AccountLoggedIn, account);
         }
         this.eventBus.emit(AccountChanged, account);
-        AIProvider.slots.userInfo.emit(toAIUserInfo(account));
       });
   }
 
-  private onApplicationStart() {
+  private onServerStarted() {
     this.session.revalidate();
   }
 
@@ -80,26 +73,38 @@ export class AuthService extends Service {
 
   async sendEmailMagicLink(
     email: string,
-    verifyToken: string,
-    challenge?: string
+    verifyToken?: string,
+    challenge?: string,
+    redirectUrl?: string // url to redirect to after signed-in
   ) {
     track.$.$.auth.signIn({ method: 'magic-link' });
     try {
+      const scheme = this.urlService.getClientScheme();
+      const magicLinkUrlParams = new URLSearchParams();
+      if (redirectUrl) {
+        magicLinkUrlParams.set('redirect_uri', redirectUrl);
+      }
+      if (scheme) {
+        magicLinkUrlParams.set('client', scheme);
+      }
       await this.fetchService.fetch('/api/auth/sign-in', {
         method: 'POST',
         body: JSON.stringify({
           email,
           // we call it [callbackUrl] instead of [redirect_uri]
           // to make it clear the url is used to finish the sign-in process instead of redirect after signed-in
-          callbackUrl: `/magic-link?client=${environment.isElectron ? appInfo?.schema : 'web'}`,
+          callbackUrl: `/magic-link?${magicLinkUrlParams.toString()}`,
         }),
         headers: {
           'content-type': 'application/json',
-          ...this.captchaHeaders(verifyToken, challenge),
+          ...(verifyToken ? this.captchaHeaders(verifyToken, challenge) : {}),
         },
       });
     } catch (e) {
-      track.$.$.auth.signInFail({ method: 'magic-link' });
+      track.$.$.auth.signInFail({
+        method: 'magic-link',
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
       throw e;
     }
   }
@@ -113,9 +118,14 @@ export class AuthService extends Service {
         },
         body: JSON.stringify({ email, token }),
       });
+
+      this.session.revalidate();
       track.$.$.auth.signedIn({ method: 'magic-link' });
     } catch (e) {
-      track.$.$.auth.signInFail({ method: 'magic-link' });
+      track.$.$.auth.signInFail({
+        method: 'magic-link',
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
       throw e;
     }
   }
@@ -125,7 +135,6 @@ export class AuthService extends Service {
     client: string,
     /** @deprecated*/ redirectUrl?: string
   ) {
-    track.$.$.auth.signIn({ method: 'oauth', provider });
     try {
       const res = await this.fetchService.fetch('/api/oauth/preflight', {
         method: 'POST',
@@ -152,7 +161,11 @@ export class AuthService extends Service {
 
       return url;
     } catch (e) {
-      track.$.$.auth.signInFail({ method: 'oauth', provider });
+      track.$.$.auth.signInFail({
+        method: 'oauth',
+        provider,
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
       throw e;
     }
   }
@@ -167,10 +180,16 @@ export class AuthService extends Service {
         },
       });
 
+      this.session.revalidate();
+
       track.$.$.auth.signedIn({ method: 'oauth', provider });
-      return res.json();
+      return await res.json();
     } catch (e) {
-      track.$.$.auth.signInFail({ method: 'oauth', provider });
+      track.$.$.auth.signInFail({
+        method: 'oauth',
+        provider,
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
       throw e;
     }
   }
@@ -178,26 +197,28 @@ export class AuthService extends Service {
   async signInPassword(credential: {
     email: string;
     password: string;
-    verifyToken: string;
+    verifyToken?: string;
     challenge?: string;
   }) {
     track.$.$.auth.signIn({ method: 'password' });
     try {
-      const res = await this.fetchService.fetch('/api/auth/sign-in', {
+      await this.fetchService.fetch('/api/auth/sign-in', {
         method: 'POST',
         body: JSON.stringify(credential),
         headers: {
           'content-type': 'application/json',
-          ...this.captchaHeaders(credential.verifyToken, credential.challenge),
+          ...(credential.verifyToken
+            ? this.captchaHeaders(credential.verifyToken, credential.challenge)
+            : {}),
         },
       });
-      if (!res.ok) {
-        throw new Error('Failed to sign in');
-      }
       this.session.revalidate();
       track.$.$.auth.signedIn({ method: 'password' });
     } catch (e) {
-      track.$.$.auth.signInFail({ method: 'password' });
+      track.$.$.auth.signInFail({
+        method: 'password',
+        reason: e instanceof BackendError ? e.originError.name : 'unknown',
+      });
       throw e;
     }
   }

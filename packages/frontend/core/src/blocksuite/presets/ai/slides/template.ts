@@ -1,9 +1,8 @@
-import { Bound } from '@blocksuite/global/utils';
-import { nanoid } from '@blocksuite/store';
+import { Bound } from '@blocksuite/affine/global/utils';
+import { nanoid } from '@blocksuite/affine/store';
 
 import { AIProvider } from '../provider';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const replaceText = (text: Record<string, string>, template: any) => {
   if (template != null && typeof template === 'object') {
     if (Array.isArray(template)) {
@@ -55,7 +54,7 @@ const getImageUrlByKeyword =
 
 const getImages = async (
   images: Record<string, (w: number, h: number) => Promise<string> | string>,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   template: any
 ): Promise<TemplateImage[]> => {
   const imgs: Record<
@@ -66,7 +65,7 @@ const getImages = async (
       height: number;
     }
   > = {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const run = (data: any) => {
     if (data != null && typeof data === 'object') {
       if (Array.isArray(data)) {
@@ -93,19 +92,21 @@ const getImages = async (
     Object.entries(imgs).map(async ([name, data]) => {
       const getImage = images[name];
       if (!getImage) {
-        return;
+        return null;
       }
-      const url = await getImage(data.width, data.height);
-      return {
-        id: data.id,
-        url,
-      } satisfies TemplateImage;
+      try {
+        const url = await getImage(data.width, data.height);
+        return {
+          id: data.id,
+          url,
+        } as TemplateImage;
+      } catch (error) {
+        console.error('Error getting image:', error);
+        return null;
+      }
     })
   );
-  const notNull = (v?: TemplateImage): v is TemplateImage => {
-    return v != null;
-  };
-  return list.filter(notNull);
+  return list.filter(v => !!v);
 };
 
 export type PPTSection = {

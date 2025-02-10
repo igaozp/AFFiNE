@@ -7,9 +7,10 @@ inputs:
   package:
     description: 'Package to build'
     required: true
-  nx_token:
-    description: 'Nx Cloud access token'
+  no-build:
+    description: 'Whether to skip building'
     required: false
+    default: 'false'
 
 runs:
   using: 'composite'
@@ -17,39 +18,72 @@ runs:
     - name: Print rustup toolchain version
       shell: bash
       id: rustup-version
+      working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
       run: |
         export RUST_TOOLCHAIN_VERSION="$(grep 'channel' rust-toolchain.toml | head -1 | awk -F '"' '{print $2}')"
         echo "Rust toolchain version: $RUST_TOOLCHAIN_VERSION"
         echo "RUST_TOOLCHAIN_VERSION=$RUST_TOOLCHAIN_VERSION" >> "$GITHUB_OUTPUT"
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
+      if: ${{ runner.os != 'Windows' }}
       with:
         toolchain: '${{ steps.rustup-version.outputs.RUST_TOOLCHAIN_VERSION }}'
         targets: ${{ inputs.target }}
       env:
         CARGO_INCREMENTAL: '1'
 
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      if: ${{ runner.os == 'Windows' }}
+      with:
+        toolchain: '${{ steps.rustup-version.outputs.RUST_TOOLCHAIN_VERSION }}'
+        targets: ${{ inputs.target }}
+      env:
+        CARGO_INCREMENTAL: '1'
+        CARGO_HOME: ${{ env.DEV_DRIVE }}/.cargo
+        RUSTUP_HOME: ${{ env.DEV_DRIVE }}/.rustup
+
     - name: Set CC
-      if: ${{ contains(inputs.target, 'linux') && inputs.package != '@affine/native' }}
+      if: ${{ contains(inputs.target, 'linux') && inputs.package != '@affine/native' && inputs.no-build != 'true' }}
+      working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
       shell: bash
       run: |
         echo "CC=clang" >> "$GITHUB_ENV"
         echo "TARGET_CC=clang" >> "$GITHUB_ENV"
 
     - name: Cache cargo
-      uses: actions/cache@v4
+      uses: Swatinem/rust-cache@v2
+      if: ${{ runner.os == 'Windows' }}
       with:
-        path: |
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          ~/.napi-rs
-          target/${{ inputs.target }}
-        key: stable-${{ inputs.target }}-cargo-cache
+        workspaces: ${{ env.DEV_DRIVE_WORKSPACE }}
+        save-if: ${{ github.ref_name == 'canary' }}
+        shared-key: ${{ inputs.target }}-${{ inputs.package }}
+      env:
+        CARGO_HOME: ${{ env.DEV_DRIVE }}/.cargo
+        RUSTUP_HOME: ${{ env.DEV_DRIVE }}/.rustup
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@v2
+      if: ${{ runner.os != 'Windows' }}
+      with:
+        save-if: ${{ github.ref_name == 'canary' }}
+        shared-key: ${{ inputs.target }}-${{ inputs.package }}
+
     - name: Build
       shell: bash
+      if: ${{ runner.os != 'Windows' && inputs.no-build != 'true' }}
       run: |
-        yarn workspace ${{ inputs.package }} nx build ${{ inputs.package }} -- --target ${{ inputs.target }} --use-napi-cross
+        yarn workspace ${{ inputs.package }} build --target ${{ inputs.target }} --use-napi-cross
       env:
-        NX_CLOUD_ACCESS_TOKEN: ${{ inputs.nx_token }}
         DEBUG: 'napi:*'
+
+    - name: Build
+      working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+      shell: bash
+      if: ${{ runner.os == 'Windows' && inputs.no-build != 'true' }}
+      run: |
+        yarn workspace ${{ inputs.package }} build --target ${{ inputs.target }} --use-napi-cross
+      env:
+        DEBUG: 'napi:*'
+        CARGO_HOME: ${{ env.DEV_DRIVE }}/.cargo
+        RUSTUP_HOME: ${{ env.DEV_DRIVE }}/.rustup

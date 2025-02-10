@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
-import { Config } from '../../fundamentals';
+import { Config } from '../../base';
 import { OAuthProviderName } from './config';
 import { OAuthProvider } from './providers/def';
 

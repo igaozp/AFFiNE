@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 
+import { Throttle } from '../../base';
 import { Public } from '../../core/auth';
-import { Throttle } from '../../fundamentals';
 import { CaptchaService } from './service';
 
 @Throttle('strict')

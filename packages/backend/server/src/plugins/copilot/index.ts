@@ -13,6 +13,7 @@ import {
   CopilotProviderService,
   FalProvider,
   OpenAIProvider,
+  PerplexityProvider,
   registerCopilotProvider,
 } from './providers';
 import {
@@ -26,6 +27,7 @@ import { CopilotWorkflowExecutors, CopilotWorkflowService } from './workflow';
 
 registerCopilotProvider(FalProvider);
 registerCopilotProvider(OpenAIProvider);
+registerCopilotProvider(PerplexityProvider);
 
 @Plugin({
   name: 'copilot',

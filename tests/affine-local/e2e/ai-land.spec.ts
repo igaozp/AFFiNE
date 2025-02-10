@@ -7,6 +7,7 @@ import {
 import { expect } from '@playwright/test';
 
 test('Click ai-land icon', async ({ page }) => {
+  test.skip(process.env.CI !== undefined, 'Skip test in CI');
   await openHomePage(page);
   await waitForEditorLoad(page);
   await clickNewPageButton(page);

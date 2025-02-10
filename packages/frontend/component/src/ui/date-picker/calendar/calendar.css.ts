@@ -5,6 +5,8 @@ import { createVar, style } from '@vanilla-extract/css';
 export const vars = {
   gapX: createVar('gapX'),
   gapY: createVar('gapY'),
+  cellFontSize: createVar('cellFontSize'),
+  cellSize: createVar('cellSize'),
 };
 
 // basic
@@ -82,9 +84,9 @@ export const basicCell = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minWidth: '28px',
-  maxWidth: '56px',
-  flex: '1',
+  width: vars.cellSize,
+  height: vars.cellSize,
+  flexBasis: vars.cellSize,
   userSelect: 'none',
 });
 
@@ -138,11 +140,16 @@ export const calendarHeaderTriggerButton = style([
   {
     display: 'inline-flex',
     lineHeight: '22px',
-    fontSize: 'var(--affine-font-sm)',
+    fontSize: vars.cellFontSize,
     fontWeight: 600,
-    padding: '2px 6px',
+    padding: '0 6px',
     borderRadius: 4,
     whiteSpace: 'nowrap',
+    selectors: {
+      '[data-mobile="true"] &': {
+        padding: '0px 4px',
+      },
+    },
   },
 ]);
 export const headerNavButtons = style({
@@ -156,12 +163,13 @@ export const headerNavGapFallback = style({
 export const headerNavToday = style([
   interactive,
   {
-    fontSize: 'var(--affine-font-sm)',
+    fontSize: vars.cellFontSize,
     fontWeight: 400,
     lineHeight: '22px',
     padding: '0 4px',
     borderRadius: 4,
     color: cssVar('iconColor'),
+    textTransform: 'uppercase',
   },
 ]);
 
@@ -180,25 +188,21 @@ export const monthViewRow = style({
 export const monthViewHeaderCell = style([
   basicCell,
   {
-    fontSize: 'var(--affine-font-xs)',
+    fontSize: vars.cellFontSize,
     fontWeight: 500,
     color: cssVar('textSecondaryColor'),
     height: 28,
   },
 ]);
-export const monthViewBodyCell = style([
-  basicCell,
-  {
-    height: '28px',
-  },
-]);
+export const monthViewBodyCell = style([basicCell]);
+
 export const monthViewBodyCellInner = style([
   interactive,
   {
     width: '100%',
     height: '100%',
     borderRadius: 8,
-    fontSize: cssVar('fontSm'),
+    fontSize: vars.cellFontSize,
     color: cssVar('textPrimaryColor'),
     fontWeight: 400,
 

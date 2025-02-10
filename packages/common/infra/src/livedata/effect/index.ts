@@ -1,6 +1,6 @@
 import { DebugLogger } from '@affine/debug';
 import { Unreachable } from '@affine/env/constant';
-import { type OperatorFunction, Subject } from 'rxjs';
+import { type OperatorFunction, Subject, type Subscription } from 'rxjs';
 
 const logger = new DebugLogger('effect');
 
@@ -9,6 +9,8 @@ export type Effect<T> = (T | undefined extends T // hack to detect if T is unkno
   : (value: T) => void) & {
   // unsubscribe effect, all ongoing effects will be cancelled.
   unsubscribe: () => void;
+  // reset internal state, all ongoing effects will be cancelled.
+  reset: () => void;
 };
 
 /**
@@ -75,7 +77,7 @@ export function effect<T, A, B, C, D, E, F>(
 export function effect(...args: any[]) {
   const subject$ = new Subject<any>();
 
-  const effectLocation = environment.isDebug
+  const effectLocation = BUILD_CONFIG.debug
     ? `(${new Error().stack?.split('\n')[2].trim()})`
     : '';
 
@@ -89,36 +91,44 @@ export function effect(...args: any[]) {
     }
   }
 
-  // eslint-disable-next-line prefer-spread
-  const subscription = subject$.pipe.apply(subject$, args as any).subscribe({
-    next(value) {
-      const error = new EffectError('should not emit value', value);
-      // make a uncaught exception
-      setTimeout(() => {
-        throw error;
-      }, 0);
-    },
-    complete() {
-      const error = new EffectError('effect unexpected complete');
-      // make a uncaught exception
-      setTimeout(() => {
-        throw error;
-      }, 0);
-    },
-    error(error) {
-      const effectError = new EffectError('effect uncaught error', error);
-      // make a uncaught exception
-      setTimeout(() => {
-        throw effectError;
-      }, 0);
-    },
-  });
+  let subscription: Subscription | null = null;
+
+  function subscribe() {
+    subscription = subject$.pipe.apply(subject$, args as any).subscribe({
+      next(value) {
+        const error = new EffectError('should not emit value', value);
+        // make a uncaught exception
+        setTimeout(() => {
+          throw error;
+        }, 0);
+      },
+      complete() {
+        const error = new EffectError('effect unexpected complete');
+        // make a uncaught exception
+        setTimeout(() => {
+          throw error;
+        }, 0);
+      },
+      error(error) {
+        const effectError = new EffectError('effect uncaught error', error);
+        // make a uncaught exception
+        setTimeout(() => {
+          throw effectError;
+        }, 0);
+      },
+    });
+  }
+  subscribe();
 
   const fn = (value: unknown) => {
     subject$.next(value);
   };
 
-  fn.unsubscribe = () => subscription.unsubscribe();
+  fn.unsubscribe = () => subscription?.unsubscribe();
+  fn.reset = () => {
+    subscription?.unsubscribe();
+    subscribe();
+  };
 
   return fn as never;
 }

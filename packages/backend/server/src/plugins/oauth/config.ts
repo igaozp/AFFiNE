@@ -1,4 +1,4 @@
-import { defineStartupConfig, ModuleConfig } from '../../fundamentals/config';
+import { defineStartupConfig, ModuleConfig } from '../../base/config';
 
 export interface OAuthProviderConfig {
   clientId: string;

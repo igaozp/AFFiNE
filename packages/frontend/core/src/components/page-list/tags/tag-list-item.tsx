@@ -23,7 +23,7 @@ const TagListTitleCell = ({
       >
         {title || t['Untitled']()}
       </div>
-      {/* //TODO(@EYHN): when indexer is ready, add this back
+      {/* // TODO(@EYHN): when indexer is ready, add this back
       <div
         data-testid="page-list-item-preview-text"
         className={styles.titleCellPreview}
@@ -198,6 +198,7 @@ const TagListItemWrapper = forwardRef(
 
     const commonProps = useMemo(
       () => ({
+        role: 'list-item',
         'data-testid': 'tag-list-item',
         'data-tag-id': tagId,
         'data-draggable': draggable,

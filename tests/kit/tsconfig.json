@@ -1,9 +1,13 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.web.json",
   "compilerOptions": {
-    "composite": true,
-    "noEmit": false,
-    "outDir": "lib"
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
-  "include": ["./*.ts", "utils", "e2e-enhance"]
+  "include": ["./src"],
+  "references": [
+    { "path": "../../tools/utils" },
+    { "path": "../../blocksuite/affine/all" }
+  ]
 }

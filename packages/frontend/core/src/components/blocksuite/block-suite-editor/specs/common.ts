@@ -3,47 +3,45 @@ import {
   AIImageBlockSpec,
   AIParagraphBlockSpec,
 } from '@affine/core/blocksuite/presets/ai';
-import type { ExtensionType } from '@blocksuite/block-std';
+import { AIChatBlockSpec } from '@affine/core/blocksuite/presets/blocks/ai-chat-block';
 import {
+  AdapterFactoryExtensions,
+  AttachmentBlockSpec,
   BookmarkBlockSpec,
   CodeBlockSpec,
   DatabaseBlockSpec,
   DataViewBlockSpec,
+  DefaultOpenDocExtension,
   DividerBlockSpec,
-  EmbedFigmaBlockSpec,
-  EmbedGithubBlockSpec,
-  EmbedHtmlBlockSpec,
-  EmbedLinkedDocBlockSpec,
-  EmbedLoomBlockSpec,
-  EmbedSyncedDocBlockSpec,
-  EmbedYoutubeBlockSpec,
+  EditPropsStore,
+  EmbedExtensions,
+  FontLoaderService,
   ImageBlockSpec,
   LatexBlockSpec,
   ListBlockSpec,
   ParagraphBlockSpec,
+  RefNodeSlotsExtension,
   RichTextExtensions,
-} from '@blocksuite/blocks';
-import { AIChatBlockSpec } from '@blocksuite/presets';
-
-import { CustomAttachmentBlockSpec } from './custom/attachment-block';
+  TableBlockSpec,
+} from '@blocksuite/affine/blocks';
+import type { ExtensionType } from '@blocksuite/affine/store';
 
 const CommonBlockSpecs: ExtensionType[] = [
+  RefNodeSlotsExtension,
+  EditPropsStore,
   RichTextExtensions,
   LatexBlockSpec,
   ListBlockSpec,
   DatabaseBlockSpec,
+  TableBlockSpec,
   DataViewBlockSpec,
   DividerBlockSpec,
+  EmbedExtensions,
   BookmarkBlockSpec,
-  EmbedFigmaBlockSpec,
-  EmbedGithubBlockSpec,
-  EmbedYoutubeBlockSpec,
-  EmbedLoomBlockSpec,
-  EmbedHtmlBlockSpec,
-  EmbedSyncedDocBlockSpec,
-  EmbedLinkedDocBlockSpec,
-  // special
-  CustomAttachmentBlockSpec,
+  AttachmentBlockSpec,
+  AdapterFactoryExtensions,
+  FontLoaderService,
+  DefaultOpenDocExtension,
 ].flat();
 
 export const DefaultBlockSpecs: ExtensionType[] = [

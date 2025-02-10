@@ -18,7 +18,7 @@ Building the desktop client app for the moment is a bit more complicated than bu
 
 1. `packages/frontend/core`: the web app
 2. `packages/frontend/native`: the native modules written in Rust (mostly the sqlite bindings)
-3. `packages/frontend/electron`: the Electron app (containing main & helper process, and the electron entry point in `packages/frontend/electron/renderer`)
+3. `packages/frontend/electron`: the Electron app (containing main & helper process, and the electron entry point in `packages/frontend/electron-renderer`)
 
 #3 is dependent on #1 and #2, and relies on electron-forge to make the final app & installer. To get a deep understanding of how the desktop client app is built, you may want to read the workflow file in [release-desktop.yml](/.github/workflows/release-desktop.yml).
 
@@ -46,17 +46,16 @@ Please refer to `Build Native Dependencies` section in [BUILDING.md](./BUILDING.
 On Mac & Linux
 
 ```shell
-BUILD_TYPE=canary SKIP_NX_CACHE=1 yarn workspace @affine/electron generate-assets
+BUILD_TYPE=canary yarn affine @affine/electron generate-assets
 ```
 
 On Windows (powershell)
 
 ```powershell
 $env:BUILD_TYPE="canary"
-$env:SKIP_NX_CACHE=1
 $env:DISTRIBUTION=desktop
 $env:SKIP_WEB_BUILD=1
-yarn build --skip-nx-cache
+yarn build
 ```
 
 ### 2. Re-config yarn, clean up the node_modules and reinstall the dependencies
@@ -91,7 +90,7 @@ yarn install
 Note: you need to comment out `osxSign` and `osxNotarize` in `forge.config.js` to skip signing and notarizing the app.
 
 ```shell
-BUILD_TYPE=canary SKIP_WEB_BUILD=1 HOIST_NODE_MODULES=1 yarn workspace @affine/electron make
+BUILD_TYPE=canary SKIP_WEB_BUILD=1 HOIST_NODE_MODULES=1 yarn affine @affine/electron make
 ```
 
 #### Windows
@@ -102,9 +101,9 @@ Making the windows installer is a bit different. Right now we provide two instal
 $env:BUILD_TYPE="canary"
 $env:SKIP_WEB_BUILD=1
 $env:HOIST_NODE_MODULES=1
-yarn workspace @affine/electron package
-yarn workspace @affine/electron make-squirrel
-yarn workspace @affine/electron make-nsis
+yarn affine @affine/electron package
+yarn affine @affine/electron make-squirrel
+yarn affine @affine/electron make-nsis
 ```
 
 Once the build is complete, you can find the paths to the binaries in the terminal output.

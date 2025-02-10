@@ -19,7 +19,9 @@ import type { AuthService } from '../services/auth';
 import type { UserQuotaStore } from '../stores/user-quota';
 
 export class UserQuota extends Entity {
-  quota$ = new LiveData<NonNullable<QuotaQuery['currentUser']>['quota']>(null);
+  quota$ = new LiveData<NonNullable<QuotaQuery['currentUser']>['quota'] | null>(
+    null
+  );
   /** Used storage in bytes */
   used$ = new LiveData<number | null>(null);
   /** Formatted used storage */

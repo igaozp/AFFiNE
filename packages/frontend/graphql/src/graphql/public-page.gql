@@ -1,9 +1,9 @@
 mutation publishPage(
   $workspaceId: String!
   $pageId: String!
-  $mode: PublicPageMode = Page
+  $mode: PublicDocMode = Page
 ) {
-  publishPage(workspaceId: $workspaceId, pageId: $pageId, mode: $mode) {
+  publishDoc(workspaceId: $workspaceId, docId: $pageId, mode: $mode) {
     id
     mode
   }

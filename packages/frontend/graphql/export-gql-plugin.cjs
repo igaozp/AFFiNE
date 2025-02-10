@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { Kind, print } = require('graphql');
 const { upperFirst, lowerFirst } = require('lodash');
@@ -138,7 +138,7 @@ module.exports = {
                     if (schema.getType(type)?.name === 'Upload') return true;
                     const typeDef = schema.getType(type);
                     const fields = typeDef.getFields?.();
-                    if (!fields || !fields) return false;
+                    if (!fields || typeof fields !== 'object') return false;
                     for (let field of Object.values(fields)) {
                       let type = field.type;
                       while (type.ofType) {

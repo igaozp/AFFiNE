@@ -7,6 +7,7 @@ import { fromModelName } from '../index.js';
 
 const bench = new Bench({
   iterations: 100,
+  warmup: true,
 });
 
 const FIXTURE = `Please extract the items that can be used as tasks from the following content, and send them to me in the format provided by the template. The extracted items should cover as much of the following content as possible.
@@ -36,7 +37,6 @@ bench
     fromModelName('gpt-4o').count(FIXTURE);
   });
 
-await bench.warmup();
 await bench.run();
 
 console.table(bench.table());

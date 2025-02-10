@@ -1,24 +1,23 @@
 import { AIProvider } from '@affine/core/blocksuite/presets/ai';
 import type { ForkChatSessionInput } from '@affine/graphql';
-import { assertExists } from '@blocksuite/global/utils';
+import { assertExists } from '@blocksuite/affine/global/utils';
 import { partition } from 'lodash-es';
 
-import { CopilotClient } from './copilot-client';
+import type { CopilotClient } from './copilot-client';
 import { delay, toTextStream } from './event-source';
 import type { PromptKey } from './prompt';
 
 const TIMEOUT = 50000;
 
-const client = new CopilotClient();
-
 export type TextToTextOptions = {
+  client: CopilotClient;
   docId: string;
   workspaceId: string;
   promptName?: PromptKey;
   sessionId?: string | Promise<string>;
   content?: string;
   attachments?: (string | Blob | File)[];
-  params?: Record<string, string>;
+  params?: Record<string, any>;
   timeout?: number;
   stream?: boolean;
   signal?: AbortSignal;
@@ -33,20 +32,42 @@ export type ToImageOptions = TextToTextOptions & {
 };
 
 export function createChatSession({
+  client,
   workspaceId,
   docId,
+  promptName,
 }: {
+  client: CopilotClient;
   workspaceId: string;
   docId: string;
+  promptName: string;
 }) {
   return client.createSession({
     workspaceId,
     docId,
-    promptName: 'Chat With AFFiNE AI',
+    promptName,
   });
 }
 
-export function forkCopilotSession(forkChatSessionInput: ForkChatSessionInput) {
+export function updateChatSession({
+  client,
+  sessionId,
+  promptName,
+}: {
+  client: CopilotClient;
+  sessionId: string;
+  promptName: string;
+}) {
+  return client.updateSession({
+    sessionId,
+    promptName,
+  });
+}
+
+export function forkCopilotSession(
+  client: CopilotClient,
+  forkChatSessionInput: ForkChatSessionInput
+) {
   return client.forkSession(forkChatSessionInput);
 }
 
@@ -70,7 +91,7 @@ async function resizeImage(blob: Blob | File): Promise<Blob | null> {
     if (ctx) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      return new Promise(resolve =>
+      return await new Promise(resolve =>
         canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.8)
       );
     }
@@ -83,6 +104,7 @@ async function resizeImage(blob: Blob | File): Promise<Blob | null> {
 }
 
 async function createSessionMessage({
+  client,
   docId,
   workspaceId,
   promptName,
@@ -140,6 +162,7 @@ async function createSessionMessage({
 }
 
 export function textToText({
+  client,
   docId,
   workspaceId,
   promptName,
@@ -169,6 +192,7 @@ export function textToText({
           _messageId = undefined;
         } else {
           const message = await createSessionMessage({
+            client,
             docId,
             workspaceId,
             promptName,
@@ -242,6 +266,7 @@ export function textToText({
           _messageId = undefined;
         } else {
           const message = await createSessionMessage({
+            client,
             docId,
             workspaceId,
             promptName,
@@ -268,10 +293,6 @@ export function textToText({
   }
 }
 
-export const listHistories = client.getHistories;
-
-export const listHistoryIds = client.getHistoryIds;
-
 // Only one image is currently being processed
 export function toImage({
   docId,
@@ -286,6 +307,7 @@ export function toImage({
   timeout = TIMEOUT,
   retry = false,
   workflow = false,
+  client,
 }: ToImageOptions) {
   let _sessionId: string;
   let _messageId: string | undefined;
@@ -305,6 +327,7 @@ export function toImage({
           content,
           attachments,
           params,
+          client,
         });
         _sessionId = sessionId;
         _messageId = messageId;
@@ -334,10 +357,12 @@ export function cleanupSessions({
   workspaceId,
   docId,
   sessionIds,
+  client,
 }: {
   workspaceId: string;
   docId: string;
   sessionIds: string[];
+  client: CopilotClient;
 }) {
   return client.cleanupSessions({ workspaceId, docId, sessionIds });
 }

@@ -10,6 +10,10 @@ export const sidebarContainerInner = style({
   width: '100%',
   borderRadius: 'inherit',
   selectors: {
+    ['[data-client-border=true] &']: {
+      borderRadius: 6,
+      border: `0.5px solid ${cssVar('borderColor')}`,
+    },
     ['[data-client-border=true][data-is-floating="true"] &']: {
       boxShadow: cssVar('shadow3'),
       border: `1px solid ${cssVar('borderColor')}`,
@@ -20,10 +24,9 @@ export const sidebarContainerInner = style({
 export const sidebarBodyTarget = style({
   display: 'flex',
   flexDirection: 'column',
+  height: 0,
   flex: 1,
   width: '100%',
-  height: '100%',
-  overflow: 'hidden',
   alignItems: 'center',
 });
 

@@ -1,452 +1,435 @@
-import { randomUUID } from 'node:crypto';
-
-import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent as RawOnEvent } from '@nestjs/event-emitter';
-import type {
-  User,
-  UserInvoice,
-  UserStripeCustomer,
-  UserSubscription,
-} from '@prisma/client';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import type { User, UserStripeCustomer } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
 import Stripe from 'stripe';
+import { z } from 'zod';
 
-import { CurrentUser } from '../../core/auth';
-import { EarlyAccessType, FeatureManagementService } from '../../core/features';
 import {
   ActionForbidden,
-  CantUpdateLifetimeSubscription,
+  CantUpdateOnetimePaymentSubscription,
   Config,
   CustomerPortalCreateFailed,
-  EventEmitter,
+  InternalServerError,
+  InvalidCheckoutParameters,
+  InvalidLicenseSessionId,
+  InvalidSubscriptionParameters,
+  LicenseRevealed,
+  Mutex,
   OnEvent,
   SameSubscriptionRecurring,
-  SubscriptionAlreadyExists,
   SubscriptionExpired,
   SubscriptionHasBeenCanceled,
+  SubscriptionHasNotBeenCanceled,
   SubscriptionNotExists,
   SubscriptionPlanNotFound,
+  UnsupportedSubscriptionPlan,
   UserNotFound,
-} from '../../fundamentals';
+} from '../../base';
+import { CurrentUser } from '../../core/auth';
+import { FeatureService } from '../../core/features';
+import { Models } from '../../models';
+import {
+  CheckoutParams,
+  Invoice,
+  Subscription,
+  SubscriptionManager,
+  UserSubscriptionCheckoutArgs,
+  UserSubscriptionIdentity,
+  UserSubscriptionManager,
+  WorkspaceSubscriptionCheckoutArgs,
+  WorkspaceSubscriptionIdentity,
+  WorkspaceSubscriptionManager,
+} from './manager';
+import {
+  SelfhostTeamCheckoutArgs,
+  SelfhostTeamSubscriptionIdentity,
+  SelfhostTeamSubscriptionManager,
+} from './manager/selfhost';
 import { ScheduleManager } from './schedule';
 import {
-  InvoiceStatus,
+  decodeLookupKey,
+  DEFAULT_PRICES,
+  KnownStripeInvoice,
+  KnownStripePrice,
+  KnownStripeSubscription,
+  retriveLookupKeyFromStripePrice,
+  retriveLookupKeyFromStripeSubscription,
   SubscriptionPlan,
-  SubscriptionPriceVariant,
   SubscriptionRecurring,
   SubscriptionStatus,
+  SubscriptionVariant,
 } from './types';
 
-const OnStripeEvent = (
-  event: Stripe.Event.Type,
-  opts?: Parameters<typeof RawOnEvent>[1]
-) => RawOnEvent(event, opts);
+export const CheckoutExtraArgs = z.union([
+  UserSubscriptionCheckoutArgs,
+  WorkspaceSubscriptionCheckoutArgs,
+  SelfhostTeamCheckoutArgs,
+]);
 
-// Plan x Recurring make a stripe price lookup key
-export function encodeLookupKey(
-  plan: SubscriptionPlan,
-  recurring: SubscriptionRecurring,
-  variant?: SubscriptionPriceVariant
-): string {
-  return `${plan}_${recurring}` + (variant ? `_${variant}` : '');
-}
+export const SubscriptionIdentity = z.union([
+  UserSubscriptionIdentity,
+  WorkspaceSubscriptionIdentity,
+  SelfhostTeamSubscriptionIdentity,
+]);
 
-export function decodeLookupKey(
-  key: string
-): [SubscriptionPlan, SubscriptionRecurring, SubscriptionPriceVariant?] {
-  const [plan, recurring, variant] = key.split('_');
-
-  return [
-    plan as SubscriptionPlan,
-    recurring as SubscriptionRecurring,
-    variant as SubscriptionPriceVariant | undefined,
-  ];
-}
-
-const SubscriptionActivated: Stripe.Subscription.Status[] = [
-  SubscriptionStatus.Active,
-  SubscriptionStatus.Trialing,
-];
-
-export enum CouponType {
-  ProEarlyAccessOneYearFree = 'pro_ea_one_year_free',
-  AIEarlyAccessOneYearFree = 'ai_ea_one_year_free',
-  ProEarlyAccessAIOneYearFree = 'ai_pro_ea_one_year_free',
-}
+export { CheckoutParams };
 
 @Injectable()
-export class SubscriptionService {
+export class SubscriptionService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SubscriptionService.name);
+  private readonly scheduleManager = new ScheduleManager(this.stripe);
 
   constructor(
     private readonly config: Config,
     private readonly stripe: Stripe,
     private readonly db: PrismaClient,
-    private readonly scheduleManager: ScheduleManager,
-    private readonly event: EventEmitter,
-    private readonly feature: FeatureManagementService
+    private readonly feature: FeatureService,
+    private readonly models: Models,
+    private readonly userManager: UserSubscriptionManager,
+    private readonly workspaceManager: WorkspaceSubscriptionManager,
+    private readonly selfhostManager: SelfhostTeamSubscriptionManager,
+    private readonly mutex: Mutex
   ) {}
 
-  async listPrices(user?: CurrentUser) {
-    let canHaveEarlyAccessDiscount = false;
-    let canHaveAIEarlyAccessDiscount = false;
-    if (user) {
-      canHaveEarlyAccessDiscount = await this.feature.isEarlyAccessUser(
-        user.id
-      );
-      canHaveAIEarlyAccessDiscount = await this.feature.isEarlyAccessUser(
-        user.id,
-        EarlyAccessType.AI
-      );
-
-      const customer = await this.getOrCreateCustomer(
-        'list-price:' + randomUUID(),
-        user
-      );
-      const oldSubscriptions = await this.stripe.subscriptions.list({
-        customer: customer.stripeCustomerId,
-        status: 'all',
-      });
-
-      oldSubscriptions.data.forEach(sub => {
-        if (sub.status === 'past_due' || sub.status === 'canceled') {
-          const [oldPlan] = this.decodePlanFromSubscription(sub);
-          if (oldPlan === SubscriptionPlan.Pro) {
-            canHaveEarlyAccessDiscount = false;
-          }
-          if (oldPlan === SubscriptionPlan.AI) {
-            canHaveAIEarlyAccessDiscount = false;
-          }
-        }
-      });
-    }
-
-    const lifetimePriceEnabled = await this.config.runtime.fetch(
-      'plugins.payment/showLifetimePrice'
-    );
-
-    const list = await this.stripe.prices.list({
-      active: true,
-      // only list recurring prices if lifetime price is not enabled
-      ...(lifetimePriceEnabled ? {} : { type: 'recurring' }),
-    });
-
-    return list.data.filter(price => {
-      if (!price.lookup_key) {
-        return false;
-      }
-
-      const [plan, recurring, variant] = decodeLookupKey(price.lookup_key);
-      // no variant price should be used for monthly or lifetime subscription
-      if (
-        recurring === SubscriptionRecurring.Monthly ||
-        recurring === SubscriptionRecurring.Lifetime
-      ) {
-        return !variant;
-      }
-
-      if (plan === SubscriptionPlan.Pro) {
-        return (
-          (canHaveEarlyAccessDiscount && variant) ||
-          (!canHaveEarlyAccessDiscount && !variant)
-        );
-      }
-
-      if (plan === SubscriptionPlan.AI) {
-        return (
-          (canHaveAIEarlyAccessDiscount && variant) ||
-          (!canHaveAIEarlyAccessDiscount && !variant)
-        );
-      }
-
-      return false;
-    });
+  async onApplicationBootstrap() {
+    await this.initStripeProducts();
   }
 
-  async createCheckoutSession({
-    user,
-    recurring,
-    plan,
-    promotionCode,
-    redirectUrl,
-    idempotencyKey,
-  }: {
-    user: CurrentUser;
-    recurring: SubscriptionRecurring;
-    plan: SubscriptionPlan;
-    promotionCode?: string | null;
-    redirectUrl: string;
-    idempotencyKey: string;
-  }) {
+  private select(plan: SubscriptionPlan): SubscriptionManager {
+    switch (plan) {
+      case SubscriptionPlan.Team:
+        return this.workspaceManager;
+      case SubscriptionPlan.Pro:
+      case SubscriptionPlan.AI:
+        return this.userManager;
+      case SubscriptionPlan.SelfHostedTeam:
+        return this.selfhostManager;
+      default:
+        throw new UnsupportedSubscriptionPlan({ plan });
+    }
+  }
+
+  async listPrices(user?: CurrentUser): Promise<KnownStripePrice[]> {
+    const prices = await this.listStripePrices();
+
+    const customer = user
+      ? await this.getOrCreateCustomer({
+          userId: user.id,
+          userEmail: user.email,
+        })
+      : undefined;
+
+    return [
+      ...(await this.userManager.filterPrices(prices, customer)),
+      ...this.workspaceManager.filterPrices(prices, customer),
+    ];
+  }
+
+  async checkout(
+    params: z.infer<typeof CheckoutParams>,
+    args: z.infer<typeof CheckoutExtraArgs>
+  ) {
+    const { plan, recurring, variant } = params;
+
     if (
       this.config.deploy &&
       this.config.affine.canary &&
-      !this.feature.isStaff(user.email)
+      (!('user' in args) || !this.feature.isStaff(args.user.email))
     ) {
       throw new ActionForbidden();
     }
 
-    const currentSubscription = await this.db.userSubscription.findFirst({
-      where: {
-        userId: user.id,
-        plan,
-        status: SubscriptionStatus.Active,
-      },
-    });
+    const manager = this.select(plan);
+    const result = CheckoutExtraArgs.safeParse(args);
 
-    if (
-      currentSubscription &&
-      // do not allow to re-subscribe unless the new recurring is `Lifetime`
-      (currentSubscription.recurring === recurring ||
-        recurring !== SubscriptionRecurring.Lifetime)
-    ) {
-      throw new SubscriptionAlreadyExists({ plan });
+    if (!result.success) {
+      throw new InvalidCheckoutParameters();
     }
 
-    const customer = await this.getOrCreateCustomer(
-      `${idempotencyKey}-getOrCreateCustomer`,
-      user
-    );
-
-    const { price, coupon } = await this.getAvailablePrice(
-      customer,
-      plan,
-      recurring
-    );
-
-    let discounts: Stripe.Checkout.SessionCreateParams['discounts'] = [];
-
-    if (coupon) {
-      discounts = [{ coupon }];
-    } else if (promotionCode) {
-      const code = await this.getAvailablePromotionCode(
-        promotionCode,
-        customer.stripeCustomerId
-      );
-      if (code) {
-        discounts = [{ promotion_code: code }];
-      }
-    }
-
-    return await this.stripe.checkout.sessions.create(
+    return manager.checkout(
       {
-        line_items: [
-          {
-            price,
-            quantity: 1,
-          },
-        ],
-        tax_id_collection: {
-          enabled: true,
-        },
-        // discount
-        ...(discounts.length ? { discounts } : { allow_promotion_codes: true }),
-        // mode: 'subscription' or 'payment' for lifetime
-        ...(recurring === SubscriptionRecurring.Lifetime
-          ? {
-              mode: 'payment',
-              invoice_creation: {
-                enabled: true,
-              },
-            }
-          : {
-              mode: 'subscription',
-            }),
-        success_url: redirectUrl,
-        customer: customer.stripeCustomerId,
-        customer_update: {
-          address: 'auto',
-          name: 'auto',
-        },
+        plan,
+        recurring,
+        variant: variant ?? null,
       },
-      { idempotencyKey: `${idempotencyKey}-checkoutSession` }
+      params,
+      args
     );
   }
 
   async cancelSubscription(
-    idempotencyKey: string,
-    userId: string,
-    plan: SubscriptionPlan
-  ): Promise<UserSubscription> {
-    const user = await this.db.user.findUnique({
-      where: {
-        id: userId,
-      },
-      include: {
-        subscriptions: {
-          where: {
-            plan,
-          },
-        },
-      },
-    });
+    identity: z.infer<typeof SubscriptionIdentity>,
+    idempotencyKey?: string
+  ): Promise<Subscription> {
+    this.assertSubscriptionIdentity(identity);
 
-    if (!user) {
-      throw new UserNotFound();
+    const manager = this.select(identity.plan);
+    const subscription = await manager.getSubscription(identity);
+
+    if (!subscription) {
+      throw new SubscriptionNotExists({ plan: identity.plan });
     }
 
-    const subscriptionInDB = user?.subscriptions.find(s => s.plan === plan);
-    if (!subscriptionInDB) {
-      throw new SubscriptionNotExists({ plan });
-    }
-
-    if (!subscriptionInDB.stripeSubscriptionId) {
-      throw new CantUpdateLifetimeSubscription(
-        'Lifetime subscription cannot be canceled.'
+    if (!subscription.stripeSubscriptionId) {
+      throw new CantUpdateOnetimePaymentSubscription(
+        'Onetime payment subscription cannot be canceled.'
       );
     }
 
-    if (subscriptionInDB.canceledAt) {
+    if (subscription.canceledAt) {
       throw new SubscriptionHasBeenCanceled();
     }
 
+    // update the subscription in db optimistically
+    const newSubscription = manager.cancelSubscription(subscription);
+
     // should release the schedule first
-    if (subscriptionInDB.stripeScheduleId) {
+    if (subscription.stripeScheduleId) {
       const manager = await this.scheduleManager.fromSchedule(
-        subscriptionInDB.stripeScheduleId
+        subscription.stripeScheduleId
       );
       await manager.cancel(idempotencyKey);
-      return this.saveSubscription(
-        user,
-        await this.stripe.subscriptions.retrieve(
-          subscriptionInDB.stripeSubscriptionId
-        )
-      );
     } else {
       // let customer contact support if they want to cancel immediately
       // see https://stripe.com/docs/billing/subscriptions/cancel
-      const subscription = await this.stripe.subscriptions.update(
-        subscriptionInDB.stripeSubscriptionId,
+      await this.stripe.subscriptions.update(
+        subscription.stripeSubscriptionId,
         { cancel_at_period_end: true },
         { idempotencyKey }
       );
-      return await this.saveSubscription(user, subscription);
     }
+
+    return newSubscription;
   }
 
-  async resumeCanceledSubscription(
-    idempotencyKey: string,
-    userId: string,
-    plan: SubscriptionPlan
-  ): Promise<UserSubscription> {
-    const user = await this.db.user.findUnique({
-      where: {
-        id: userId,
-      },
-      include: {
-        subscriptions: true,
-      },
-    });
+  async resumeSubscription(
+    identity: z.infer<typeof SubscriptionIdentity>,
+    idempotencyKey?: string
+  ): Promise<Subscription> {
+    this.assertSubscriptionIdentity(identity);
 
-    if (!user) {
-      throw new UserNotFound();
+    const manager = this.select(identity.plan);
+
+    const subscription = await manager.getSubscription(identity);
+
+    if (!subscription) {
+      throw new SubscriptionNotExists({ plan: identity.plan });
     }
 
-    const subscriptionInDB = user?.subscriptions.find(s => s.plan === plan);
-    if (!subscriptionInDB) {
-      throw new SubscriptionNotExists({ plan });
+    if (!subscription.canceledAt) {
+      throw new SubscriptionHasNotBeenCanceled();
     }
 
-    if (!subscriptionInDB.stripeSubscriptionId || !subscriptionInDB.end) {
-      throw new CantUpdateLifetimeSubscription(
-        'Lifetime subscription cannot be resumed.'
+    if (!subscription.stripeSubscriptionId || !subscription.end) {
+      throw new CantUpdateOnetimePaymentSubscription(
+        'Onetime payment subscription cannot be resumed.'
       );
     }
 
-    if (!subscriptionInDB.canceledAt) {
-      throw new SubscriptionHasBeenCanceled();
-    }
-
-    if (subscriptionInDB.end < new Date()) {
+    if (subscription.end < new Date()) {
       throw new SubscriptionExpired();
     }
 
-    if (subscriptionInDB.stripeScheduleId) {
+    // update the subscription in db optimistically
+    const newSubscription = await manager.resumeSubscription(subscription);
+
+    if (subscription.stripeScheduleId) {
       const manager = await this.scheduleManager.fromSchedule(
-        subscriptionInDB.stripeScheduleId
+        subscription.stripeScheduleId
       );
       await manager.resume(idempotencyKey);
-      return this.saveSubscription(
-        user,
-        await this.stripe.subscriptions.retrieve(
-          subscriptionInDB.stripeSubscriptionId
-        )
-      );
     } else {
-      const subscription = await this.stripe.subscriptions.update(
-        subscriptionInDB.stripeSubscriptionId,
+      await this.stripe.subscriptions.update(
+        subscription.stripeSubscriptionId,
         { cancel_at_period_end: false },
         { idempotencyKey }
       );
-
-      return await this.saveSubscription(user, subscription);
     }
+
+    return newSubscription;
   }
 
   async updateSubscriptionRecurring(
-    idempotencyKey: string,
-    userId: string,
-    plan: SubscriptionPlan,
-    recurring: SubscriptionRecurring
-  ): Promise<UserSubscription> {
-    const user = await this.db.user.findUnique({
-      where: {
-        id: userId,
-      },
-      include: {
-        subscriptions: true,
-      },
-    });
+    identity: z.infer<typeof SubscriptionIdentity>,
+    recurring: SubscriptionRecurring,
+    idempotencyKey?: string
+  ): Promise<Subscription> {
+    this.assertSubscriptionIdentity(identity);
 
-    if (!user) {
-      throw new UserNotFound();
-    }
-    const subscriptionInDB = user?.subscriptions.find(s => s.plan === plan);
-    if (!subscriptionInDB) {
-      throw new SubscriptionNotExists({ plan });
+    const manager = this.select(identity.plan);
+    const subscription = await manager.getSubscription(identity);
+
+    if (!subscription) {
+      throw new SubscriptionNotExists({ plan: identity.plan });
     }
 
-    if (!subscriptionInDB.stripeSubscriptionId) {
-      throw new CantUpdateLifetimeSubscription(
-        'Can not update lifetime subscription.'
-      );
+    if (!subscription.stripeSubscriptionId) {
+      throw new CantUpdateOnetimePaymentSubscription();
     }
 
-    if (subscriptionInDB.canceledAt) {
+    if (subscription.canceledAt) {
       throw new SubscriptionHasBeenCanceled();
     }
 
-    if (subscriptionInDB.recurring === recurring) {
+    if (subscription.recurring === recurring) {
       throw new SameSubscriptionRecurring({ recurring });
     }
 
-    const price = await this.getPrice(
-      subscriptionInDB.plan as SubscriptionPlan,
+    const price = await manager.getPrice({
+      plan: identity.plan,
+      recurring,
+      variant: null,
+    });
+
+    if (!price) {
+      throw new SubscriptionPlanNotFound({
+        plan: identity.plan,
+        recurring,
+      });
+    }
+
+    // update the subscription in db optimistically
+    const newSubscription = manager.updateSubscriptionRecurring(
+      subscription,
       recurring
     );
 
-    const manager = await this.scheduleManager.fromSubscription(
-      `${idempotencyKey}-fromSubscription`,
-      subscriptionInDB.stripeSubscriptionId
+    const scheduleManager = await this.scheduleManager.fromSubscription(
+      subscription.stripeSubscriptionId
     );
 
-    await manager.update(`${idempotencyKey}-update`, price);
+    await scheduleManager.update(price.price.id, idempotencyKey);
 
-    return await this.db.userSubscription.update({
-      where: {
-        id: subscriptionInDB.id,
-      },
-      data: {
-        stripeScheduleId: manager.schedule?.id ?? null, // update schedule id or set to null(undefined means untouched)
-        recurring,
-      },
-    });
+    return newSubscription;
   }
 
-  async createCustomerPortal(id: string) {
+  async updateSubscriptionQuantity(
+    identity: z.infer<typeof SubscriptionIdentity>,
+    count: number
+  ) {
+    this.assertSubscriptionIdentity(identity);
+
+    const subscription = await this.select(identity.plan).getSubscription(
+      identity
+    );
+
+    if (!subscription) {
+      throw new SubscriptionNotExists({ plan: identity.plan });
+    }
+
+    if (!subscription.stripeSubscriptionId) {
+      throw new CantUpdateOnetimePaymentSubscription();
+    }
+
+    const stripeSubscription = await this.stripe.subscriptions.retrieve(
+      subscription.stripeSubscriptionId
+    );
+
+    const lookupKey =
+      retriveLookupKeyFromStripeSubscription(stripeSubscription);
+
+    await this.stripe.subscriptions.update(stripeSubscription.id, {
+      items: [
+        {
+          id: stripeSubscription.items.data[0].id,
+          quantity: count,
+        },
+      ],
+      payment_behavior: 'pending_if_incomplete',
+      proration_behavior:
+        lookupKey?.recurring === SubscriptionRecurring.Yearly
+          ? 'always_invoice'
+          : 'none',
+    });
+
+    if (subscription.stripeScheduleId) {
+      const schedule = await this.scheduleManager.fromSchedule(
+        subscription.stripeScheduleId
+      );
+      await schedule.updateQuantity(count);
+    }
+  }
+
+  async generateLicenseKey(stripeCheckoutSessionId: string) {
+    if (!stripeCheckoutSessionId) {
+      throw new InvalidLicenseSessionId();
+    }
+
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await this.stripe.checkout.sessions.retrieve(
+        stripeCheckoutSessionId
+      );
+    } catch {
+      throw new InvalidLicenseSessionId();
+    }
+
+    // session should be complete and have a subscription
+    if (session.status !== 'complete' || !session.subscription) {
+      throw new InvalidLicenseSessionId();
+    }
+
+    const subscription =
+      typeof session.subscription === 'string'
+        ? await this.stripe.subscriptions.retrieve(session.subscription)
+        : session.subscription;
+
+    const knownSubscription = await this.parseStripeSubscription(subscription);
+
+    // invalid subscription triple
+    if (
+      !knownSubscription ||
+      knownSubscription.lookupKey.plan !== SubscriptionPlan.SelfHostedTeam
+    ) {
+      throw new InvalidLicenseSessionId();
+    }
+
+    let subInDB = await this.db.subscription.findUnique({
+      where: {
+        stripeSubscriptionId: subscription.id,
+      },
+    });
+
+    // subscription not found in db
+    if (!subInDB) {
+      subInDB =
+        await this.selfhostManager.saveStripeSubscription(knownSubscription);
+    }
+
+    const license = await this.db.license.findUnique({
+      where: {
+        key: subInDB.targetId,
+      },
+    });
+
+    // subscription and license are created in a transaction
+    // there is no way a sub exist but the license is not created
+    if (!license) {
+      throw new Error(
+        'unaccessible path. if you see this error, there must be a bug in the codebase.'
+      );
+    }
+
+    if (!license.revealedAt) {
+      await this.db.license.update({
+        where: {
+          key: license.key,
+        },
+        data: {
+          revealedAt: new Date(),
+        },
+      });
+
+      return license.key;
+    }
+
+    throw new LicenseRevealed();
+  }
+
+  async createCustomerPortal(userId: string) {
     const user = await this.db.userStripeCustomer.findUnique({
       where: {
-        userId: id,
+        userId: userId,
       },
     });
 
@@ -466,259 +449,63 @@ export class SubscriptionService {
     }
   }
 
-  @OnStripeEvent('invoice.created')
-  @OnStripeEvent('invoice.updated')
-  @OnStripeEvent('invoice.finalization_failed')
-  @OnStripeEvent('invoice.payment_failed')
-  @OnStripeEvent('invoice.payment_succeeded')
-  async saveInvoice(stripeInvoice: Stripe.Invoice, event: string) {
-    stripeInvoice = await this.stripe.invoices.retrieve(stripeInvoice.id);
-    if (!stripeInvoice.customer) {
-      throw new Error('Unexpected invoice with no customer');
+  async saveStripeInvoice(stripeInvoice: Stripe.Invoice): Promise<Invoice> {
+    const knownInvoice = await this.parseStripeInvoice(stripeInvoice);
+
+    if (!knownInvoice) {
+      throw new InternalServerError('Failed to parse stripe invoice.');
     }
 
-    const user = await this.retrieveUserFromCustomer(
-      typeof stripeInvoice.customer === 'string'
-        ? stripeInvoice.customer
-        : stripeInvoice.customer.id
-    );
-
-    const data: Partial<UserInvoice> = {
-      currency: stripeInvoice.currency,
-      amount: stripeInvoice.total,
-      status: stripeInvoice.status ?? InvoiceStatus.Void,
-      link: stripeInvoice.hosted_invoice_url,
-    };
-
-    // handle payment error
-    if (stripeInvoice.attempt_count > 1) {
-      const paymentIntent = await this.stripe.paymentIntents.retrieve(
-        stripeInvoice.payment_intent as string
-      );
-
-      if (paymentIntent.last_payment_error) {
-        if (paymentIntent.last_payment_error.type === 'card_error') {
-          data.lastPaymentError =
-            paymentIntent.last_payment_error.message ?? 'Failed to pay';
-        } else {
-          data.lastPaymentError = 'Internal Payment error';
-        }
-      }
-    } else if (stripeInvoice.last_finalization_error) {
-      if (stripeInvoice.last_finalization_error.type === 'card_error') {
-        data.lastPaymentError =
-          stripeInvoice.last_finalization_error.message ??
-          'Failed to finalize invoice';
-      } else {
-        data.lastPaymentError = 'Internal Payment error';
-      }
-    }
-
-    // create invoice
-    const price = stripeInvoice.lines.data[0].price;
-
-    if (!price) {
-      throw new Error('Unexpected invoice with no price');
-    }
-
-    if (!price.lookup_key) {
-      throw new Error('Unexpected subscription with no key');
-    }
-
-    const [plan, recurring] = decodeLookupKey(price.lookup_key);
-
-    const invoice = await this.db.userInvoice.upsert({
-      where: {
-        stripeInvoiceId: stripeInvoice.id,
-      },
-      update: data,
-      create: {
-        userId: user.id,
-        stripeInvoiceId: stripeInvoice.id,
-        plan,
-        recurring,
-        reason: stripeInvoice.billing_reason ?? 'contact support',
-        ...(data as any),
-      },
-    });
-
-    // handle one time payment, no subscription created by stripe
-    if (
-      event === 'invoice.payment_succeeded' &&
-      recurring === SubscriptionRecurring.Lifetime &&
-      stripeInvoice.status === 'paid'
-    ) {
-      await this.saveLifetimeSubscription(user, invoice);
-    }
+    return this.select(knownInvoice.lookupKey.plan).saveInvoice(knownInvoice);
   }
 
-  async saveLifetimeSubscription(user: User, invoice: UserInvoice) {
-    // cancel previous non-lifetime subscription
-    const savedSubscription = await this.db.userSubscription.findUnique({
-      where: {
-        userId_plan: {
-          userId: user.id,
-          plan: SubscriptionPlan.Pro,
-        },
-      },
-    });
+  async saveStripeSubscription(subscription: Stripe.Subscription) {
+    const knownSubscription = await this.parseStripeSubscription(subscription);
 
-    if (savedSubscription && savedSubscription.stripeSubscriptionId) {
-      await this.db.userSubscription.update({
-        where: {
-          id: savedSubscription.id,
-        },
-        data: {
-          stripeScheduleId: null,
-          stripeSubscriptionId: null,
-          status: SubscriptionStatus.Active,
-          recurring: SubscriptionRecurring.Lifetime,
-          start: new Date(),
-          end: null,
-          nextBillAt: null,
-        },
-      });
+    if (!knownSubscription) {
+      throw new InternalServerError('Failed to parse stripe subscription.');
+    }
 
-      await this.stripe.subscriptions.cancel(
-        savedSubscription.stripeSubscriptionId,
-        {
-          prorate: true,
-        }
-      );
+    const isPlanActive =
+      subscription.status === SubscriptionStatus.Active ||
+      subscription.status === SubscriptionStatus.Trialing;
+
+    const manager = this.select(knownSubscription.lookupKey.plan);
+
+    if (!isPlanActive) {
+      await manager.deleteStripeSubscription(knownSubscription);
     } else {
-      await this.db.userSubscription.create({
-        data: {
-          userId: user.id,
-          stripeSubscriptionId: null,
-          plan: invoice.plan,
-          recurring: invoice.recurring,
-          start: new Date(),
-          end: null,
-          status: SubscriptionStatus.Active,
-          nextBillAt: null,
-        },
-      });
-    }
-
-    this.event.emit('user.subscription.activated', {
-      userId: user.id,
-      plan: invoice.plan as SubscriptionPlan,
-      recurring: SubscriptionRecurring.Lifetime,
-    });
-  }
-
-  @OnStripeEvent('customer.subscription.created')
-  @OnStripeEvent('customer.subscription.updated')
-  async onSubscriptionChanges(subscription: Stripe.Subscription) {
-    subscription = await this.stripe.subscriptions.retrieve(subscription.id);
-    if (subscription.status === 'active') {
-      const user = await this.retrieveUserFromCustomer(
-        typeof subscription.customer === 'string'
-          ? subscription.customer
-          : subscription.customer.id
-      );
-
-      await this.saveSubscription(user, subscription);
-    } else {
-      await this.onSubscriptionDeleted(subscription);
+      await manager.saveStripeSubscription(knownSubscription);
     }
   }
 
-  @OnStripeEvent('customer.subscription.deleted')
-  async onSubscriptionDeleted(subscription: Stripe.Subscription) {
-    const user = await this.retrieveUserFromCustomer(
-      typeof subscription.customer === 'string'
-        ? subscription.customer
-        : subscription.customer.id
-    );
+  async deleteStripeSubscription(subscription: Stripe.Subscription) {
+    const knownSubscription = await this.parseStripeSubscription(subscription);
 
-    const [plan, recurring] = this.decodePlanFromSubscription(subscription);
-
-    this.event.emit('user.subscription.canceled', {
-      userId: user.id,
-      plan,
-      recurring,
-    });
-
-    await this.db.userSubscription.deleteMany({
-      where: {
-        stripeSubscriptionId: subscription.id,
-      },
-    });
-  }
-
-  private async saveSubscription(
-    user: User,
-    subscription: Stripe.Subscription
-  ): Promise<UserSubscription> {
-    const price = subscription.items.data[0].price;
-    if (!price.lookup_key) {
-      throw new Error('Unexpected subscription with no key');
+    if (!knownSubscription) {
+      throw new InternalServerError('Failed to parse stripe subscription.');
     }
 
-    const [plan, recurring] = this.decodePlanFromSubscription(subscription);
-    const planActivated = SubscriptionActivated.includes(subscription.status);
-
-    // update features first, features modify are idempotent
-    // so there is no need to skip if a subscription already exists.
-    this.event.emit('user.subscription.activated', {
-      userId: user.id,
-      plan,
-      recurring,
-    });
-
-    let nextBillAt: Date | null = null;
-    if (planActivated && !subscription.canceled_at) {
-      // get next bill date from upcoming invoice
-      // see https://stripe.com/docs/api/invoices/upcoming
-      nextBillAt = new Date(subscription.current_period_end * 1000);
-    }
-
-    const commonData = {
-      start: new Date(subscription.current_period_start * 1000),
-      end: new Date(subscription.current_period_end * 1000),
-      trialStart: subscription.trial_start
-        ? new Date(subscription.trial_start * 1000)
-        : null,
-      trialEnd: subscription.trial_end
-        ? new Date(subscription.trial_end * 1000)
-        : null,
-      nextBillAt,
-      canceledAt: subscription.canceled_at
-        ? new Date(subscription.canceled_at * 1000)
-        : null,
-      stripeSubscriptionId: subscription.id,
-      plan,
-      status: subscription.status,
-      stripeScheduleId: subscription.schedule as string | null,
-    };
-
-    return await this.db.userSubscription.upsert({
-      where: {
-        stripeSubscriptionId: subscription.id,
-      },
-      update: commonData,
-      create: {
-        userId: user.id,
-        recurring,
-        ...commonData,
-      },
-    });
+    const manager = this.select(knownSubscription.lookupKey.plan);
+    await manager.deleteStripeSubscription(knownSubscription);
   }
 
-  private async getOrCreateCustomer(
-    idempotencyKey: string,
-    user: CurrentUser
-  ): Promise<UserStripeCustomer> {
+  async getOrCreateCustomer({
+    userId,
+    userEmail,
+  }: {
+    userId: string;
+    userEmail: string;
+  }): Promise<UserStripeCustomer> {
     let customer = await this.db.userStripeCustomer.findUnique({
       where: {
-        userId: user.id,
+        userId,
       },
     });
 
     if (!customer) {
       const stripeCustomersList = await this.stripe.customers.list({
-        email: user.email,
+        email: userEmail,
         limit: 1,
       });
 
@@ -726,15 +513,14 @@ export class SubscriptionService {
       if (stripeCustomersList.data.length) {
         stripeCustomer = stripeCustomersList.data[0];
       } else {
-        stripeCustomer = await this.stripe.customers.create(
-          { email: user.email },
-          { idempotencyKey }
-        );
+        stripeCustomer = await this.stripe.customers.create({
+          email: userEmail,
+        });
       }
 
       customer = await this.db.userStripeCustomer.create({
         data: {
-          userId: user.id,
+          userId,
           stripeCustomerId: stripeCustomer.id,
         },
       });
@@ -763,181 +549,203 @@ export class SubscriptionService {
     }
   }
 
-  private async retrieveUserFromCustomer(customerId: string) {
-    const customer = await this.db.userStripeCustomer.findUnique({
+  private async retrieveUserFromCustomer(
+    customer: string | Stripe.Customer | Stripe.DeletedCustomer
+  ): Promise<{ id?: string; email: string } | null> {
+    const userStripeCustomer = await this.db.userStripeCustomer.findUnique({
       where: {
-        stripeCustomerId: customerId,
+        stripeCustomerId: typeof customer === 'string' ? customer : customer.id,
       },
-      include: {
+      select: {
         user: true,
       },
     });
 
-    if (customer?.user) {
-      return customer.user;
+    if (userStripeCustomer) {
+      return userStripeCustomer.user;
     }
 
-    // customer may not saved is db, check it with stripe
-    const stripeCustomer = await this.stripe.customers.retrieve(customerId);
-
-    if (stripeCustomer.deleted) {
-      throw new Error('Unexpected subscription created with deleted customer');
+    if (typeof customer === 'string') {
+      customer = await this.stripe.customers.retrieve(customer);
     }
 
-    if (!stripeCustomer.email) {
-      throw new Error('Unexpected subscription created with no email customer');
+    if (customer.deleted || !customer.email || !customer.id) {
+      return null;
     }
 
-    const user = await this.db.user.findUnique({
-      where: {
-        email: stripeCustomer.email,
-      },
-    });
+    const user = await this.models.user.getPublicUserByEmail(customer.email);
 
     if (!user) {
-      throw new Error(
-        `Unexpected subscription created with unknown customer ${stripeCustomer.email}`
-      );
+      return {
+        id: undefined,
+        email: customer.email,
+      };
     }
-
-    await this.db.userStripeCustomer.create({
-      data: {
-        userId: user.id,
-        stripeCustomerId: stripeCustomer.id,
-      },
-    });
 
     return user;
   }
 
-  private async getPrice(
-    plan: SubscriptionPlan,
-    recurring: SubscriptionRecurring,
-    variant?: SubscriptionPriceVariant
-  ): Promise<string> {
-    if (recurring === SubscriptionRecurring.Lifetime) {
-      const lifetimePriceEnabled = await this.config.runtime.fetch(
-        'plugins.payment/showLifetimePrice'
-      );
-
-      if (!lifetimePriceEnabled) {
-        throw new ActionForbidden();
-      }
-    }
-
+  private async listStripePrices(): Promise<KnownStripePrice[]> {
     const prices = await this.stripe.prices.list({
-      lookup_keys: [encodeLookupKey(plan, recurring, variant)],
-    });
-
-    if (!prices.data.length) {
-      throw new SubscriptionPlanNotFound({
-        plan,
-        recurring,
-      });
-    }
-
-    return prices.data[0].id;
-  }
-
-  /**
-   * Get available for different plans with special early-access price and coupon
-   */
-  private async getAvailablePrice(
-    customer: UserStripeCustomer,
-    plan: SubscriptionPlan,
-    recurring: SubscriptionRecurring
-  ): Promise<{ price: string; coupon?: string }> {
-    const isEaUser = await this.feature.isEarlyAccessUser(customer.userId);
-    const oldSubscriptions = await this.stripe.subscriptions.list({
-      customer: customer.stripeCustomerId,
-      status: 'all',
-    });
-
-    const subscribed = oldSubscriptions.data.some(sub => {
-      const [oldPlan] = this.decodePlanFromSubscription(sub);
-      return (
-        oldPlan === plan &&
-        (sub.status === 'past_due' || sub.status === 'canceled')
-      );
-    });
-
-    if (plan === SubscriptionPlan.Pro) {
-      const canHaveEADiscount =
-        isEaUser && !subscribed && recurring === SubscriptionRecurring.Yearly;
-      const price = await this.getPrice(
-        plan,
-        recurring,
-        canHaveEADiscount ? SubscriptionPriceVariant.EA : undefined
-      );
-      return {
-        price,
-        coupon: canHaveEADiscount
-          ? CouponType.ProEarlyAccessOneYearFree
-          : undefined,
-      };
-    } else {
-      const isAIEaUser = await this.feature.isEarlyAccessUser(
-        customer.userId,
-        EarlyAccessType.AI
-      );
-
-      const canHaveEADiscount =
-        isAIEaUser && !subscribed && recurring === SubscriptionRecurring.Yearly;
-      const price = await this.getPrice(
-        plan,
-        recurring,
-        canHaveEADiscount ? SubscriptionPriceVariant.EA : undefined
-      );
-
-      return {
-        price,
-        coupon: !subscribed
-          ? isAIEaUser
-            ? CouponType.AIEarlyAccessOneYearFree
-            : isEaUser
-              ? CouponType.ProEarlyAccessAIOneYearFree
-              : undefined
-          : undefined,
-      };
-    }
-  }
-
-  private async getAvailablePromotionCode(
-    userFacingPromotionCode: string,
-    customer?: string
-  ) {
-    const list = await this.stripe.promotionCodes.list({
-      code: userFacingPromotionCode,
       active: true,
-      limit: 1,
+      limit: 100,
     });
 
-    const code = list.data[0];
-    if (!code) {
+    return prices.data
+      .map(price => this.parseStripePrice(price))
+      .filter(Boolean) as KnownStripePrice[];
+  }
+
+  private async parseStripeInvoice(
+    invoice: Stripe.Invoice
+  ): Promise<KnownStripeInvoice | null> {
+    // we can't do anything if we can't recognize the customer
+    if (!invoice.customer_email) {
       return null;
     }
 
-    let available = false;
+    const price = invoice.lines.data[0]?.price;
 
-    if (code.customer) {
-      available =
-        typeof code.customer === 'string'
-          ? code.customer === customer
-          : code.customer.id === customer;
-    } else {
-      available = true;
+    // there should be at least one line item in the invoice
+    if (!price) {
+      return null;
     }
 
-    return available ? code.id : null;
+    const lookupKey = retriveLookupKeyFromStripePrice(price);
+
+    // The whole subscription system depends on the lookup_keys bound with prices.
+    // if the price comes with no lookup_key, we should just ignore it.
+    if (!lookupKey) {
+      return null;
+    }
+
+    const user = await this.models.user.getPublicUserByEmail(
+      invoice.customer_email
+    );
+
+    return {
+      userId: user?.id,
+      userEmail: invoice.customer_email,
+      stripeInvoice: invoice,
+      lookupKey,
+      metadata: invoice.subscription_details?.metadata ?? {},
+    };
   }
 
-  private decodePlanFromSubscription(sub: Stripe.Subscription) {
-    const price = sub.items.data[0].price;
+  private async parseStripeSubscription(
+    subscription: Stripe.Subscription
+  ): Promise<KnownStripeSubscription | null> {
+    const lookupKey = retriveLookupKeyFromStripeSubscription(subscription);
 
-    if (!price.lookup_key) {
-      throw new Error('Unexpected subscription with no key');
+    if (!lookupKey) {
+      return null;
     }
 
-    return decodeLookupKey(price.lookup_key);
+    const user = await this.retrieveUserFromCustomer(subscription.customer);
+
+    // stripe customer got deleted or customer email is null
+    // it's an invalid status
+    // maybe we need to check stripe dashboard
+    if (!user) {
+      return null;
+    }
+
+    return {
+      userId: user.id,
+      userEmail: user.email,
+      lookupKey,
+      stripeSubscription: subscription,
+      quantity: subscription.items.data[0]?.quantity ?? 1,
+      metadata: subscription.metadata,
+    };
+  }
+
+  private parseStripePrice(price: Stripe.Price): KnownStripePrice | null {
+    const lookupKey = retriveLookupKeyFromStripePrice(price);
+
+    return lookupKey
+      ? {
+          lookupKey,
+          price,
+        }
+      : null;
+  }
+
+  private assertSubscriptionIdentity(
+    args: z.infer<typeof SubscriptionIdentity>
+  ) {
+    const result = SubscriptionIdentity.safeParse(args);
+
+    if (!result.success) {
+      throw new InvalidSubscriptionParameters();
+    }
+  }
+
+  private async initStripeProducts() {
+    // only init stripe products in dev mode or canary deployment
+    if (
+      (this.config.deploy && !this.config.affine.canary) ||
+      !this.config.node.dev
+    ) {
+      return;
+    }
+
+    await using lock = await this.mutex.acquire('init stripe prices');
+
+    if (!lock) {
+      return;
+    }
+
+    const keys = new Set<string>();
+    try {
+      await this.stripe.prices
+        .list({
+          active: true,
+          limit: 100,
+        })
+        .autoPagingEach(item => {
+          if (item.lookup_key) {
+            keys.add(item.lookup_key);
+          }
+        });
+    } catch {
+      this.logger.warn('Failed to list stripe prices, skip auto init.');
+      return;
+    }
+
+    for (const [key, setting] of DEFAULT_PRICES) {
+      if (keys.has(key)) {
+        continue;
+      }
+
+      const lookupKey = decodeLookupKey(key);
+
+      try {
+        await this.stripe.prices.create({
+          product_data: {
+            name: setting.product,
+          },
+          billing_scheme: 'per_unit',
+          unit_amount: setting.price,
+          currency: 'usd',
+          lookup_key: key,
+          tax_behavior: 'inclusive',
+          recurring:
+            lookupKey.recurring === SubscriptionRecurring.Lifetime ||
+            lookupKey.variant === SubscriptionVariant.Onetime
+              ? undefined
+              : {
+                  interval:
+                    lookupKey.recurring === SubscriptionRecurring.Monthly
+                      ? 'month'
+                      : 'year',
+                  interval_count: 1,
+                  usage_type: 'licensed',
+                },
+        });
+      } catch (e) {
+        this.logger.error('Failed to create stripe price.', e);
+      }
+    }
   }
 }

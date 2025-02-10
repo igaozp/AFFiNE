@@ -1,11 +1,19 @@
 import { Checkbox, Tooltip, useDraggable } from '@affine/component';
+import { type Doc, DocsService } from '@affine/core/modules/doc';
 import { TagService } from '@affine/core/modules/tag';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { stopPropagation } from '@affine/core/utils';
 import { i18nTime } from '@affine/i18n';
-import { useLiveData, useService } from '@toeverything/infra';
+import { FrameworkScope, useLiveData, useService } from '@toeverything/infra';
 import type { ForwardedRef, PropsWithChildren } from 'react';
-import { forwardRef, useCallback, useEffect, useMemo } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { WorkbenchLink } from '../../../modules/workbench/view/workbench-link';
 import {
@@ -142,7 +150,7 @@ const PageListOperationsCell = ({
   ) : null;
 };
 
-export const PageListItem = (props: PageListItemProps) => {
+const PagelistItemInner = (props: PageListItemProps) => {
   const [displayProperties] = useAllDocDisplayProperties();
   const pageTitleElement = useMemo(() => {
     return (
@@ -180,7 +188,8 @@ export const PageListItem = (props: PageListItemProps) => {
         },
       },
     }),
-    [props.draggable, props.pageId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [props.draggable, props.pageId, props.selectable]
   );
 
   return (
@@ -245,6 +254,29 @@ export const PageListItem = (props: PageListItemProps) => {
         {pageTitleElement}
       </CustomDragPreview>
     </>
+  );
+};
+
+export const PageListItem = (props: PageListItemProps) => {
+  const docsService = useService(DocsService);
+  const [doc, setDoc] = useState<Doc | null>(null);
+
+  useLayoutEffect(() => {
+    const { doc, release } = docsService.open(props.pageId);
+    setDoc(doc);
+    return () => {
+      release();
+    };
+  }, [props.pageId, docsService.list, docsService]);
+
+  if (!doc) {
+    return null;
+  }
+
+  return (
+    <FrameworkScope scope={doc.scope}>
+      <PagelistItemInner {...props} />
+    </FrameworkScope>
   );
 };
 
@@ -345,6 +377,7 @@ const PageListItemWrapper = forwardRef(
 
     const commonProps = useMemo(
       () => ({
+        role: 'list-item',
         'data-testid': 'page-list-item',
         'data-page-id': pageId,
         'data-draggable': draggable,
@@ -380,7 +413,7 @@ const PageListItemWrapper = forwardRef(
 
     if (to) {
       return (
-        <WorkbenchLink ref={ref} {...commonProps} to={to}>
+        <WorkbenchLink ref={ref} draggable={false} {...commonProps} to={to}>
           {children}
         </WorkbenchLink>
       );

@@ -118,6 +118,8 @@ spec:
                 key: stripeWebhookKey
           - name: DOC_MERGE_INTERVAL
             value: "{{ .Values.app.doc.mergeInterval }}"
+          - name: DOC_SERVICE_ENDPOINT
+            value: "http://{{ .Values.global.docService.name }}:{{ .Values.global.docService.port }}"
           {{ if .Values.app.experimental.enableJwstCodec }}
           - name: DOC_MERGE_USE_JWST_CODEC
             value: "true"
@@ -157,6 +159,11 @@ spec:
               secretKeyRef:
                 name: "{{ .Values.app.copilot.secretName }}"
                 key: falSecret
+          - name: COPILOT_PERPLEXITY_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: "{{ .Values.app.copilot.secretName }}"
+                key: perplexitySecret
           - name: COPILOT_UNSPLASH_API_KEY
             valueFrom:
               secretKeyRef:

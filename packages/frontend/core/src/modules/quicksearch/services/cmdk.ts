@@ -1,12 +1,16 @@
-import { track } from '@affine/core/mixpanel';
-import type { DocsService } from '@toeverything/infra';
+import { track } from '@affine/track';
+import { Text } from '@blocksuite/affine/store';
 import { Service } from '@toeverything/infra';
 
+import type { DocProps } from '../../../blocksuite/initialization';
+import type { DocsService } from '../../doc';
+import { EditorSettingService } from '../../editor-setting';
 import type { WorkbenchService } from '../../workbench';
 import { CollectionsQuickSearchSession } from '../impls/collections';
 import { CommandsQuickSearchSession } from '../impls/commands';
 import { CreationQuickSearchSession } from '../impls/creation';
 import { DocsQuickSearchSession } from '../impls/docs';
+import { LinksQuickSearchSession } from '../impls/links';
 import { RecentDocsQuickSearchSession } from '../impls/recent-docs';
 import { TagsQuickSearchSession } from '../impls/tags';
 import type { QuickSearchService } from './quick-search';
@@ -31,20 +35,33 @@ export class CMDKQuickSearchService extends Service {
           this.framework.createEntity(CommandsQuickSearchSession),
           this.framework.createEntity(CreationQuickSearchSession),
           this.framework.createEntity(DocsQuickSearchSession),
+          this.framework.createEntity(LinksQuickSearchSession),
           this.framework.createEntity(TagsQuickSearchSession),
         ],
         result => {
           if (!result) {
             return;
           }
+
           if (result.source === 'commands') {
             result.payload.run()?.catch(err => {
               console.error(err);
             });
-          } else if (
-            result.source === 'recent-doc' ||
-            result.source === 'docs'
-          ) {
+            return;
+          }
+
+          if (result.source === 'link') {
+            const { docId, blockIds, elementIds, mode } = result.payload;
+            this.workbenchService.workbench.openDoc({
+              docId,
+              blockIds,
+              elementIds,
+              mode,
+            });
+            return;
+          }
+
+          if (result.source === 'recent-doc' || result.source === 'docs') {
             const doc: {
               docId: string;
               blockId?: string;
@@ -62,31 +79,47 @@ export class CMDKQuickSearchService extends Service {
             }
 
             this.workbenchService.workbench.openDoc(options);
-          } else if (result.source === 'collections') {
+            return;
+          }
+
+          if (result.source === 'collections') {
             this.workbenchService.workbench.openCollection(
               result.payload.collectionId
             );
-          } else if (result.source === 'tags') {
+            return;
+          }
+
+          if (result.source === 'tags') {
             this.workbenchService.workbench.openTag(result.payload.tagId);
-          } else if (result.source === 'creation') {
+            return;
+          }
+
+          if (result.source === 'creation') {
+            const editorSettingService =
+              this.framework.get(EditorSettingService);
+            const docProps: DocProps = {
+              page: { title: new Text(result.payload.title) },
+              note: editorSettingService.editorSetting.get('affine:note'),
+            };
             if (result.id === 'creation:create-page') {
               const newDoc = this.docsService.createDoc({
                 primaryMode: 'page',
-                title: result.payload.title,
+                docProps,
               });
               this.workbenchService.workbench.openDoc(newDoc.id);
             } else if (result.id === 'creation:create-edgeless') {
               const newDoc = this.docsService.createDoc({
                 primaryMode: 'edgeless',
-                title: result.payload.title,
+                docProps,
               });
               this.workbenchService.workbench.openDoc(newDoc.id);
             }
+            return;
           }
         },
         {
           placeholder: {
-            key: 'com.affine.cmdk.docs.placeholder',
+            i18nKey: 'com.affine.cmdk.docs.placeholder',
           },
         }
       );

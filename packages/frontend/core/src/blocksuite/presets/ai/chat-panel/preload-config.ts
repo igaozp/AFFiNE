@@ -25,7 +25,7 @@ export const AIPreloadConfig = [
   },
   {
     icon: MindmapIcon,
-    text: 'Tidy a article with AI MindMap Action',
+    text: 'Tidy an article with AI MindMap Action',
     handler: () => {
       AIProvider.slots.requestInsertTemplate.emit({
         template: TidyMindMapV3,

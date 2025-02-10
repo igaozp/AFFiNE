@@ -1,28 +1,27 @@
-import { DebugLogger } from '@affine/debug';
-import { WorkspaceFlavour } from '@affine/env/workspace';
-import type { WorkspaceService } from '@toeverything/infra';
 import {
   backoffRetry,
-  catchErrorInto,
   effect,
   Entity,
+  exhaustMapWithTrailing,
   fromPromise,
   LiveData,
-  mapInto,
   onComplete,
   onStart,
 } from '@toeverything/infra';
-import { exhaustMap } from 'rxjs';
+import { EMPTY, mergeMap } from 'rxjs';
 
-import { isBackendError, isNetworkError } from '../../cloud';
+import type { WorkspaceService } from '../../workspace';
 import type { WorkspacePermissionStore } from '../stores/permission';
 
-const logger = new DebugLogger('affine:workspace-permission');
-
 export class WorkspacePermission extends Entity {
-  isOwner$ = new LiveData<boolean | null>(null);
-  isLoading$ = new LiveData(false);
-  error$ = new LiveData<any>(null);
+  private readonly cache$ = LiveData.from(
+    this.store.watchWorkspacePermissionCache(),
+    undefined
+  );
+  isOwner$ = this.cache$.map(cache => cache?.isOwner ?? null);
+  isAdmin$ = this.cache$.map(cache => cache?.isAdmin ?? null);
+  isTeam$ = this.cache$.map(cache => cache?.isTeam ?? null);
+  isRevalidating$ = new LiveData(false);
 
   constructor(
     private readonly workspaceService: WorkspaceService,
@@ -32,34 +31,49 @@ export class WorkspacePermission extends Entity {
   }
 
   revalidate = effect(
-    exhaustMap(() => {
+    exhaustMapWithTrailing(() => {
       return fromPromise(async signal => {
-        if (
-          this.workspaceService.workspace.flavour ===
-          WorkspaceFlavour.AFFINE_CLOUD
-        ) {
-          return await this.store.fetchIsOwner(
+        if (this.workspaceService.workspace.flavour !== 'local') {
+          const info = await this.store.fetchWorkspaceInfo(
             this.workspaceService.workspace.id,
             signal
           );
+
+          return {
+            isOwner: info.isOwner,
+            isAdmin: info.isAdmin,
+            isTeam: info.workspace.team,
+          };
         } else {
-          return true;
+          return { isOwner: true, isAdmin: false, isTeam: false };
         }
       }).pipe(
         backoffRetry({
-          when: isNetworkError,
           count: Infinity,
         }),
-        backoffRetry({
-          when: isBackendError,
+        mergeMap(({ isOwner, isAdmin, isTeam }) => {
+          this.store.setWorkspacePermissionCache({
+            isOwner,
+            isAdmin,
+            isTeam,
+          });
+          return EMPTY;
         }),
-        mapInto(this.isOwner$),
-        catchErrorInto(this.error$, error => {
-          logger.error('Failed to fetch isOwner', error);
-        }),
-        onStart(() => this.isLoading$.setValue(true)),
-        onComplete(() => this.isLoading$.setValue(false))
+        onStart(() => this.isRevalidating$.setValue(true)),
+        onComplete(() => this.isRevalidating$.setValue(false))
       );
     })
   );
+
+  async waitForRevalidation(signal?: AbortSignal) {
+    this.revalidate();
+    await this.isRevalidating$.waitFor(
+      isRevalidating => !isRevalidating,
+      signal
+    );
+  }
+
+  override dispose(): void {
+    this.revalidate.unsubscribe();
+  }
 }

@@ -1,4 +1,9 @@
-import { InternalLottie } from '@affine/component/internal-lottie';
+import { Tooltip } from '@affine/component';
+import {
+  type CustomLottieProps,
+  InternalLottie,
+} from '@affine/component/internal-lottie';
+import { useI18n } from '@affine/i18n';
 import type { HTMLAttributes } from 'react';
 import type React from 'react';
 import { cloneElement, useState } from 'react';
@@ -10,7 +15,7 @@ type HoverAnimateControllerProps = {
   active?: boolean;
   hide?: boolean;
   trash?: boolean;
-  children: React.ReactElement;
+  children: React.ReactElement<CustomLottieProps>;
 } & HTMLAttributes<HTMLDivElement>;
 
 const HoverAnimateController = ({
@@ -55,19 +60,33 @@ const edgelessLottieOptions = {
 export const PageSwitchItem = (
   props: Omit<HoverAnimateControllerProps, 'children'>
 ) => {
+  const t = useI18n();
   return (
-    <HoverAnimateController {...props}>
-      <InternalLottie options={pageLottieOptions} />
-    </HoverAnimateController>
+    <Tooltip
+      content={t['com.affine.header.mode-switch.page']()}
+      shortcut={['$alt', 'S']}
+      side="bottom"
+    >
+      <HoverAnimateController {...props}>
+        <InternalLottie options={pageLottieOptions} />
+      </HoverAnimateController>
+    </Tooltip>
   );
 };
 
 export const EdgelessSwitchItem = (
   props: Omit<HoverAnimateControllerProps, 'children'>
 ) => {
+  const t = useI18n();
   return (
-    <HoverAnimateController {...props}>
-      <InternalLottie options={edgelessLottieOptions} />
-    </HoverAnimateController>
+    <Tooltip
+      content={t['com.affine.header.mode-switch.edgeless']()}
+      shortcut={['$alt', 'S']}
+      side="bottom"
+    >
+      <HoverAnimateController {...props}>
+        <InternalLottie options={edgelessLottieOptions} />
+      </HoverAnimateController>
+    </Tooltip>
   );
 };

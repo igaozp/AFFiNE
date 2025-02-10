@@ -6,26 +6,30 @@ import type {
 } from '@nestjs/common';
 import { Injectable, SetMetadata } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
+import { Socket } from 'socket.io';
 
 import {
+  AccessDenied,
   AuthenticationRequired,
   Config,
+  CryptoHelper,
   getRequestResponseFromContext,
-  mapAnyError,
   parseCookies,
-} from '../../fundamentals';
-import { WEBSOCKET_OPTIONS } from '../../fundamentals/websocket';
+} from '../../base';
+import { WEBSOCKET_OPTIONS } from '../../base/websocket';
 import { AuthService } from './service';
 import { Session } from './session';
 
 const PUBLIC_ENTRYPOINT_SYMBOL = Symbol('public');
+const INTERNAL_ENTRYPOINT_SYMBOL = Symbol('internal');
 
 @Injectable()
 export class AuthGuard implements CanActivate, OnModuleInit {
   private auth!: AuthService;
 
   constructor(
+    private readonly crypto: CryptoHelper,
     private readonly ref: ModuleRef,
     private readonly reflector: Reflector
   ) {}
@@ -36,8 +40,23 @@ export class AuthGuard implements CanActivate, OnModuleInit {
 
   async canActivate(context: ExecutionContext) {
     const { req, res } = getRequestResponseFromContext(context);
+    const clazz = context.getClass();
+    const handler = context.getHandler();
+    // rpc request is internal
+    const isInternal = this.reflector.getAllAndOverride<boolean>(
+      INTERNAL_ENTRYPOINT_SYMBOL,
+      [clazz, handler]
+    );
+    if (isInternal) {
+      // check access token: data,signature
+      const accessToken = req.get('x-access-token');
+      if (accessToken && this.crypto.verify(accessToken)) {
+        return true;
+      }
+      throw new AccessDenied('Invalid internal request');
+    }
 
-    const userSession = await this.signIn(req);
+    const userSession = await this.signIn(req, res);
     if (res && userSession && userSession.expiresAt) {
       await this.auth.refreshUserSessionIfNeeded(res, userSession);
     }
@@ -45,7 +64,7 @@ export class AuthGuard implements CanActivate, OnModuleInit {
     // api is public
     const isPublic = this.reflector.getAllAndOverride<boolean>(
       PUBLIC_ENTRYPOINT_SYMBOL,
-      [context.getClass(), context.getHandler()]
+      [clazz, handler]
     );
 
     if (isPublic) {
@@ -59,16 +78,13 @@ export class AuthGuard implements CanActivate, OnModuleInit {
     return true;
   }
 
-  async signIn(req: Request): Promise<Session | null> {
+  async signIn(req: Request, res?: Response): Promise<Session | null> {
     if (req.session) {
       return req.session;
     }
 
-    // compatibility with websocket request
-    parseCookies(req);
-
     // TODO(@forehalo): a cache for user session
-    const userSession = await this.auth.getUserSessionFromRequest(req);
+    const userSession = await this.auth.getUserSessionFromRequest(req, res);
 
     if (userSession) {
       req.session = {
@@ -88,32 +104,32 @@ export class AuthGuard implements CanActivate, OnModuleInit {
  */
 export const Public = () => SetMetadata(PUBLIC_ENTRYPOINT_SYMBOL, true);
 
+/**
+ * Mark rpc api to be internal accessible
+ */
+export const Internal = () => SetMetadata(INTERNAL_ENTRYPOINT_SYMBOL, true);
+
 export const AuthWebsocketOptionsProvider: FactoryProvider = {
   provide: WEBSOCKET_OPTIONS,
   useFactory: (config: Config, guard: AuthGuard) => {
     return {
       ...config.websocket,
-      allowRequest: async (
-        req: any,
-        pass: (err: string | null | undefined, success: boolean) => void
-      ) => {
-        if (!config.websocket.requireAuthentication) {
-          return pass(null, true);
-        }
+      canActivate: async (socket: Socket) => {
+        const upgradeReq = socket.client.request as Request;
+        const handshake = socket.handshake;
 
-        try {
-          const authentication = await guard.signIn(req);
+        // compatibility with websocket request
+        parseCookies(upgradeReq);
 
-          if (authentication) {
-            return pass(null, true);
-          } else {
-            return pass('unauthenticated', false);
-          }
-        } catch (e) {
-          const error = mapAnyError(e);
-          error.log('Websocket');
-          return pass('unauthenticated', false);
-        }
+        upgradeReq.cookies = {
+          [AuthService.sessionCookieName]: handshake.auth.token,
+          [AuthService.userCookieName]: handshake.auth.userId,
+          ...upgradeReq.cookies,
+        };
+
+        const session = await guard.signIn(upgradeReq);
+
+        return !!session;
       },
     };
   },

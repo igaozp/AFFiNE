@@ -7,15 +7,13 @@
     "**/bower_components/**",
     "**/vendor/**",
     "**/examples/**",
-    "**/__tests__/**",
-    "**/test/**",
-    "**/__fixtures__/**"
+    "**/__tests__/**"
   ],
   "packageRules": [
     {
-      "matchPackagePatterns": ["^eslint", "^@typescript-eslint"],
       "rangeStrategy": "replace",
-      "groupName": "linter"
+      "groupName": "linter",
+      "matchPackageNames": ["/^eslint/", "/^@typescript-eslint/"]
     },
     {
       "matchDepNames": ["oxlint"],
@@ -23,23 +21,25 @@
       "groupName": "oxlint"
     },
     {
-      "groupName": "blocksuite-canary",
-      "matchPackagePatterns": ["^@blocksuite"],
-      "excludePackageNames": ["@blocksuite/icons"],
+      "groupName": "blocksuite",
       "rangeStrategy": "replace",
-      "enabled": false
+      "changelogUrl": "https://github.com/toeverything/blocksuite/blob/master/packages/blocks/CHANGELOG.md",
+      "matchPackageNames": ["/^@blocksuite/", "!@blocksuite/icons"]
     },
     {
       "groupName": "all non-major dependencies",
       "groupSlug": "all-minor-patch",
-      "matchPackagePatterns": ["*"],
-      "excludePackagePatterns": ["^@blocksuite/", "oxlint"],
-      "matchUpdateTypes": ["minor", "patch"]
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["*", "!/^@blocksuite//", "!/oxlint/"]
     },
     {
       "groupName": "rust toolchain",
       "matchManagers": ["custom.regex"],
       "matchDepNames": ["rustc"]
+    },
+    {
+      "groupName": "nestjs",
+      "matchPackageNames": ["/^@nestjs/"]
     }
   ],
   "commitMessagePrefix": "chore: ",

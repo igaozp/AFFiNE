@@ -1,11 +1,11 @@
-import { defineRuntimeConfig, ModuleConfig } from '../../fundamentals/config';
+import { defineRuntimeConfig, ModuleConfig } from '../../base/config';
 
 export interface ServerFlags {
   earlyAccessControl: boolean;
   syncClientVersionCheck: boolean;
 }
 
-declare module '../../fundamentals/config' {
+declare module '../../base/config' {
   interface AppConfig {
     flags: ModuleConfig<never, ServerFlags>;
   }

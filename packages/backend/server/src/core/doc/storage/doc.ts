@@ -1,13 +1,16 @@
+import { Logger } from '@nestjs/common';
 import {
   applyUpdate,
+  diffUpdate,
   Doc,
   encodeStateAsUpdate,
   encodeStateVector,
+  encodeStateVectorFromUpdate,
   mergeUpdates,
   UndoManager,
 } from 'yjs';
 
-import { CallTimer } from '../../../fundamentals';
+import { CallMetric } from '../../../base';
 import { Connection } from './connection';
 import { SingletonLocker } from './lock';
 
@@ -17,6 +20,12 @@ export interface DocRecord {
   bin: Uint8Array;
   timestamp: number;
   editor?: string;
+}
+
+export interface DocDiff {
+  missing: Uint8Array;
+  state: Uint8Array;
+  timestamp: number;
 }
 
 export interface DocUpdate {
@@ -41,6 +50,7 @@ export interface DocStorageOptions {
 
 export abstract class DocStorageAdapter extends Connection {
   private readonly locker = new SingletonLocker();
+  protected readonly logger = new Logger(DocStorageAdapter.name);
 
   constructor(
     protected readonly options: DocStorageOptions = {
@@ -68,6 +78,9 @@ export abstract class DocStorageAdapter extends Connection {
     const updates = await this.getDocUpdates(spaceId, docId);
 
     if (updates.length) {
+      this.logger.log(
+        `Squashing updates, spaceId: ${spaceId}, docId: ${docId}, updates: ${updates.length}`
+      );
       const { timestamp, bin, editor } = await this.squash(
         snapshot ? [snapshot, ...updates] : updates
       );
@@ -88,12 +101,38 @@ export abstract class DocStorageAdapter extends Connection {
       }
 
       // always mark updates as merged unless throws
-      await this.markUpdatesMerged(spaceId, docId, updates);
+      const count = await this.markUpdatesMerged(spaceId, docId, updates);
+      if (count > 0) {
+        this.logger.log(
+          `Marked ${count} updates as merged, spaceId: ${spaceId}, docId: ${docId}`
+        );
+      }
 
       return newSnapshot;
     }
 
     return snapshot;
+  }
+
+  async getDocDiff(
+    spaceId: string,
+    docId: string,
+    stateVector?: Uint8Array
+  ): Promise<DocDiff | null> {
+    const doc = await this.getDoc(spaceId, docId);
+
+    if (!doc) {
+      return null;
+    }
+
+    const missing = stateVector ? diffUpdate(doc.bin, stateVector) : doc.bin;
+    const state = encodeStateVectorFromUpdate(doc.bin);
+
+    return {
+      missing,
+      state,
+      timestamp: doc.timestamp,
+    };
   }
 
   abstract pushDocUpdates(
@@ -165,7 +204,7 @@ export abstract class DocStorageAdapter extends Connection {
     force?: boolean
   ): Promise<boolean>;
 
-  @CallTimer('doc', 'squash')
+  @CallMetric('doc', 'squash')
   protected async squash(updates: DocUpdate[]): Promise<DocUpdate> {
     const merge = this.options?.mergeUpdates ?? mergeUpdates;
     const lastUpdate = updates.at(-1);

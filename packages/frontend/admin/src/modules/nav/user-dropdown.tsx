@@ -26,7 +26,7 @@ export function UserDropdown() {
     fetch('/api/auth/sign-out')
       .then(() => {
         toast.success('Logged out successfully');
-        relative();
+        return relative();
       })
       .catch(err => {
         toast.error(`Failed to logout: ${err.message}`);

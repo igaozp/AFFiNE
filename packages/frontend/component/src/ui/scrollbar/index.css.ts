@@ -53,6 +53,11 @@ export const scrollbar = style({
     },
   },
 });
+
+export const mobileScrollbar = style({
+  display: 'none',
+});
+
 export const TableScrollbar = style({
   marginTop: '60px',
   height: 'calc(100% - 120px)',

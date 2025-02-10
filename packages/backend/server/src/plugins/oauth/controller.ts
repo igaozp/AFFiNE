@@ -7,18 +7,18 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { ConnectedAccount, PrismaClient } from '@prisma/client';
+import { ConnectedAccount } from '@prisma/client';
 import type { Request, Response } from 'express';
 
-import { AuthService, Public } from '../../core/auth';
-import { UserService } from '../../core/user';
 import {
   InvalidOauthCallbackState,
   MissingOauthQueryParameter,
   OauthAccountAlreadyConnected,
   OauthStateExpired,
   UnknownOauthProvider,
-} from '../../fundamentals';
+} from '../../base';
+import { AuthService, Public } from '../../core/auth';
+import { Models } from '../../models';
 import { OAuthProviderName } from './config';
 import { OAuthAccount, Tokens } from './providers/def';
 import { OAuthProviderFactory } from './register';
@@ -29,9 +29,8 @@ export class OAuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly oauth: OAuthService,
-    private readonly user: UserService,
-    private readonly providerFactory: OAuthProviderFactory,
-    private readonly db: PrismaClient
+    private readonly models: Models,
+    private readonly providerFactory: OAuthProviderFactory
   ) {}
 
   @Public()
@@ -111,7 +110,6 @@ export class OAuthController {
     await this.auth.setCookies(req, res, user.id);
     res.send({
       id: user.id,
-      /* @deprecated */
       redirectUri: state.redirectUri,
     });
   }
@@ -121,50 +119,39 @@ export class OAuthController {
     externalAccount: OAuthAccount,
     tokens: Tokens
   ) {
-    const connectedUser = await this.db.connectedAccount.findFirst({
-      where: {
-        provider,
-        providerAccountId: externalAccount.id,
-      },
-      include: {
-        user: true,
-      },
-    });
+    const connectedAccount = await this.models.user.getConnectedAccount(
+      provider,
+      externalAccount.id
+    );
 
-    if (connectedUser) {
+    if (connectedAccount) {
       // already connected
-      await this.updateConnectedAccount(connectedUser, tokens);
-
-      return connectedUser.user;
+      await this.updateConnectedAccount(connectedAccount, tokens);
+      return connectedAccount.user;
     }
 
-    const user = await this.user.fulfillUser(externalAccount.email, {
-      emailVerifiedAt: new Date(),
-      registered: true,
+    const user = await this.models.user.fulfill(externalAccount.email, {
       avatarUrl: externalAccount.avatarUrl,
     });
 
-    await this.db.connectedAccount.create({
-      data: {
-        userId: user.id,
-        provider,
-        providerAccountId: externalAccount.id,
-        ...tokens,
-      },
+    await this.models.user.createConnectedAccount({
+      userId: user.id,
+      provider,
+      providerAccountId: externalAccount.id,
+      ...tokens,
     });
+
     return user;
   }
 
   private async updateConnectedAccount(
-    connectedUser: ConnectedAccount,
+    connectedAccount: ConnectedAccount,
     tokens: Tokens
   ) {
-    return this.db.connectedAccount.update({
-      where: {
-        id: connectedUser.id,
-      },
-      data: tokens,
-    });
+    return await this.models.user.updateConnectedAccount(
+      connectedAccount.id,
+      tokens
+    );
   }
 
   /**
@@ -178,26 +165,20 @@ export class OAuthController {
     externalAccount: OAuthAccount,
     tokens: Tokens
   ) {
-    const connectedUser = await this.db.connectedAccount.findFirst({
-      where: {
-        provider,
-        providerAccountId: externalAccount.id,
-      },
-    });
-
-    if (connectedUser) {
-      if (connectedUser.id !== user.id) {
+    const connectedAccount = await this.models.user.getConnectedAccount(
+      provider,
+      externalAccount.id
+    );
+    if (connectedAccount) {
+      if (connectedAccount.userId !== user.id) {
         throw new OauthAccountAlreadyConnected();
       }
     } else {
-      await this.db.connectedAccount.create({
-        data: {
-          userId: user.id,
-          provider,
-          providerAccountId: externalAccount.id,
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        },
+      await this.models.user.createConnectedAccount({
+        userId: user.id,
+        provider,
+        providerAccountId: externalAccount.id,
+        ...tokens,
       });
     }
   }

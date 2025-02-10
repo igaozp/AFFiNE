@@ -1,8 +1,10 @@
 import {
   gqlFetcherFactory,
+  GraphQLError,
   type GraphQLQuery,
   type QueryOptions,
   type QueryResponse,
+  UserFriendlyError,
 } from '@affine/graphql';
 import { fromPromise, Service } from '@toeverything/infra';
 import type { Observable } from 'rxjs';
@@ -37,12 +39,21 @@ export class GraphQLService extends Service {
   ): Promise<QueryResponse<Query>> => {
     try {
       return await this.rawGql(options);
-    } catch (err) {
-      if (err instanceof BackendError && err.status === 403) {
+    } catch (anyError) {
+      let error = anyError;
+
+      // NOTE(@forehalo):
+      //   GraphQL error is not present by non-200 status code, but by responding `errors` fields in the body
+      //   So it will never be `BackendError` originally.
+      if (anyError instanceof GraphQLError) {
+        error = new BackendError(UserFriendlyError.fromAnyError(anyError));
+      }
+
+      if (error instanceof BackendError && error.status === 403) {
         this.framework.get(AuthService).session.revalidate();
       }
 
-      throw err;
+      throw error;
     }
   };
 }

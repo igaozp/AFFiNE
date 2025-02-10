@@ -1,13 +1,20 @@
-import type { ExtensionType } from '@blocksuite/block-std';
-import { SpecProvider } from '@blocksuite/blocks';
-import { AIChatBlockSpec } from '@blocksuite/presets';
+import { AIChatBlockSpec } from '@affine/core/blocksuite/presets/blocks/ai-chat-block';
+import { SpecProvider } from '@blocksuite/affine/blocks';
+import type { ExtensionType } from '@blocksuite/affine/store';
 
-const CustomSpecs: ExtensionType[] = [AIChatBlockSpec].flat();
+import { getFontConfigExtension } from './font-extension';
+
+const CustomSpecs: ExtensionType[] = [
+  AIChatBlockSpec,
+  getFontConfigExtension(),
+].flat();
 
 function patchPreviewSpec(id: string, specs: ExtensionType[]) {
   const specProvider = SpecProvider.getInstance();
   specProvider.extendSpec(id, specs);
 }
 
-// Patch edgeless preview spec for blocksuite surface-ref and embed-synced-doc
-patchPreviewSpec('edgeless:preview', CustomSpecs);
+export function effects() {
+  // Patch edgeless preview spec for blocksuite surface-ref and embed-synced-doc
+  patchPreviewSpec('edgeless:preview', CustomSpecs);
+}

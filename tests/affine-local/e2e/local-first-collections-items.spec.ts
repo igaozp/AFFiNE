@@ -20,7 +20,7 @@ const removeOnboardingPages = async (page: Page) => {
   await page.getByTestId('page-list-header-selection-checkbox').click();
   await page.getByTestId('list-toolbar-delete').click();
   // confirm delete
-  await page.getByTestId('confirm-delete-page').click();
+  await page.getByTestId('confirm-modal-confirm').click();
 };
 
 test.beforeEach(async ({ page }) => {
@@ -57,10 +57,10 @@ const createAndPinCollection = async (
   await page.getByTestId('save-as-collection').click({
     delay: 200,
   });
-  const title = page.getByTestId('input-collection-title');
+  const title = page.getByTestId('prompt-modal-input');
   await expect(title).toBeVisible();
   await title.fill(options?.collectionName ?? 'test collection');
-  await page.getByTestId('save-collection').click();
+  await page.getByTestId('prompt-modal-confirm').click();
   await page.waitForTimeout(100);
 };
 
@@ -159,10 +159,10 @@ test('add collection from sidebar', async ({ page }) => {
   );
   await expect(nullCollection).toBeVisible();
   await page.getByTestId('explorer-bar-add-collection-button').click();
-  const title = page.getByTestId('input-collection-title');
+  const title = page.getByTestId('prompt-modal-input');
   await expect(title).toBeVisible();
   await title.fill('test collection');
-  await page.getByTestId('save-collection').click();
+  await page.getByTestId('prompt-modal-confirm').click();
   await page.waitForTimeout(100);
   const collections = page.getByTestId('explorer-collections');
   const items = collections.locator('[data-testid^="explorer-collection-"]');

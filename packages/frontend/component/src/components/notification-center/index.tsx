@@ -85,7 +85,7 @@ function NotificationCard(props: NotificationCardProps): ReactNode {
   const [animationKey, setAnimationKey] = useState(0);
   const animationRef = useRef<SVGAnimateElement>(null);
   const notificationRef = useRef<HTMLLIElement>(null);
-  const timerIdRef = useRef<number>();
+  const timerIdRef = useRef<number | null>(null);
   const isFront = index === 0;
   const isVisible = index + 1 <= 3;
   const progressDuration = notification.timeout || 3000;

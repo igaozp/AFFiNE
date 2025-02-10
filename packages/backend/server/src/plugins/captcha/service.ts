@@ -6,12 +6,12 @@ import type { Request } from 'express';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 
-import { TokenService, TokenType } from '../../core/auth/token';
 import {
   CaptchaVerificationFailed,
   Config,
   verifyChallengeResponse,
-} from '../../fundamentals';
+} from '../../base';
+import { Models, TokenType } from '../../models';
 import { CaptchaConfig } from './types';
 
 const validator = z
@@ -26,7 +26,7 @@ export class CaptchaService {
 
   constructor(
     private readonly config: Config,
-    private readonly token: TokenService
+    private readonly models: Models
   ) {
     assert(config.plugins.captcha);
     this.captcha = config.plugins.captcha;
@@ -47,7 +47,7 @@ export class CaptchaService {
       body: formData,
       method: 'POST',
     });
-    const outcome = await result.json();
+    const outcome: any = await result.json();
 
     return (
       !!outcome.success &&
@@ -66,7 +66,7 @@ export class CaptchaService {
 
   async getChallengeToken() {
     const resource = randomUUID();
-    const challenge = await this.token.createToken(
+    const challenge = await this.models.verificationToken.create(
       TokenType.Challenge,
       resource,
       5 * 60
@@ -88,15 +88,14 @@ export class CaptchaService {
 
   async verifyRequest(credential: Credential, req: Request) {
     const challenge = credential.challenge;
+    let resource: string | null = null;
     if (typeof challenge === 'string' && challenge) {
-      const resource = await this.token
-        .getToken(TokenType.Challenge, challenge)
-        .then(token => token?.credential);
+      resource = await this.models.verificationToken
+        .get(TokenType.Challenge, challenge)
+        .then(token => token?.credential || null);
+    }
 
-      if (!resource) {
-        throw new CaptchaVerificationFailed('Invalid Challenge');
-      }
-
+    if (resource) {
       const isChallengeVerified = await this.verifyChallengeResponse(
         credential.token,
         resource

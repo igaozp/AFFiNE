@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 //
 // ###############################################################
 // ##                AFFiNE Configuration System                ##
@@ -8,22 +7,12 @@
 // Any changes in this file won't take effect before server restarted.
 //
 //
-// > Configurations merge order
-//   1. load environment variables (`.env` if provided, and from system)
-//   2. load `src/fundamentals/config/default.ts` for all default settings
-//   3. apply `./affine.ts` patches (this file)
-//   4. apply `./affine.env.ts` patches
-//
-//
 // ###############################################################
 // ##                       General settings                    ##
 // ###############################################################
 //
-// /* The unique identity of the server */
-// AFFiNE.serverId = 'some-randome-uuid';
-//
 // /* The name of AFFiNE Server, may show on the UI */
-// AFFiNE.serverName = 'Your Cool AFFiNE Selfhosted Cloud';
+AFFiNE.serverName = 'My Selfhosted AFFiNE Cloud';
 //
 // /* Whether the server is deployed behind a HTTPS proxied environment */
 AFFiNE.server.https = false;
@@ -81,14 +70,6 @@ AFFiNE.server.port = 3010;
 // ##                        Plugins settings                   ##
 // ###############################################################
 //
-// /* Redis Plugin */
-// /* Provide caching and session storing backed by Redis. */
-// /* Useful when you deploy AFFiNE server in a cluster. */
-// AFFiNE.use('redis', {
-//   /* override options */
-// });
-//
-//
 // /* Payment Plugin */
 // AFFiNE.use('payment', {
 //   stripe: { keys: {}, apiVersion: '2023-10-16' },
@@ -117,9 +98,14 @@ AFFiNE.server.port = 3010;
 // /* AWS S3 Plugin */
 // /* Enable if you choose to store workspace blobs or user avatars in AWS S3 Storage Service */
 // AFFiNE.use('aws-s3', {
-//  credentials: {
-//    accessKeyId: '',
-//    secretAccessKey: '',
+//   credentials: {
+//     accessKeyId: '',
+//     secretAccessKey: '',
+//   },
+//   /* Whether enable checksum calculation for request */
+//   /* see https://github.com/aws/aws-sdk-js-v3/issues/6810 */
+//   requestChecksumCalculation: 'WHEN_REQUIRED',
+//   responseChecksumValidation: 'WHEN_REQUIRED',
 // })
 // /* Update the provider of storages */
 // AFFiNE.storages.blob.provider = 'cloudflare-r2';

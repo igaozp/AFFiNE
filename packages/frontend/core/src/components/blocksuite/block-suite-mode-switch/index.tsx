@@ -1,11 +1,16 @@
-import { RadioGroup, type RadioItem, toast, Tooltip } from '@affine/component';
+import { RadioGroup, type RadioItem } from '@affine/component';
 import { registerAffineCommand } from '@affine/core/commands';
-import { track } from '@affine/core/mixpanel';
 import { EditorService } from '@affine/core/modules/editor';
+import { ViewService, WorkbenchService } from '@affine/core/modules/workbench';
 import { useI18n } from '@affine/i18n';
-import type { DocMode } from '@blocksuite/blocks';
+import { track } from '@affine/track';
+import type { DocMode } from '@blocksuite/affine/blocks';
 import { EdgelessIcon, PageIcon } from '@blocksuite/icons/rc';
-import { useLiveData, useService } from '@toeverything/infra';
+import {
+  useLiveData,
+  useService,
+  useServiceOptional,
+} from '@toeverything/infra';
 import { useCallback, useEffect, useMemo } from 'react';
 
 import { switchItem } from './style.css';
@@ -36,24 +41,24 @@ export const EditorModeSwitch = () => {
   const trash = useLiveData(editor.doc.trash$);
   const isSharedMode = editor.isSharedMode;
   const currentMode = useLiveData(editor.mode$);
+  const view = useServiceOptional(ViewService)?.view;
+  const workbench = useServiceOptional(WorkbenchService)?.workbench;
+  const activeView = useLiveData(workbench?.activeView$);
+  const isActiveView = activeView?.id && activeView?.id === view?.id;
 
   const togglePage = useCallback(() => {
     if (currentMode === 'page' || isSharedMode || trash) return;
     editor.setMode('page');
     editor.setSelector(undefined);
-    editor.doc.setPrimaryMode('page');
-    toast(t['com.affine.toastMessage.pageMode']());
     track.$.header.actions.switchPageMode({ mode: 'page' });
-  }, [currentMode, editor, isSharedMode, t, trash]);
+  }, [currentMode, editor, isSharedMode, trash]);
 
   const toggleEdgeless = useCallback(() => {
     if (currentMode === 'edgeless' || isSharedMode || trash) return;
     editor.setMode('edgeless');
     editor.setSelector(undefined);
-    editor.doc.setPrimaryMode('edgeless');
-    toast(t['com.affine.toastMessage.edgelessMode']());
     track.$.header.actions.switchPageMode({ mode: 'edgeless' });
-  }, [currentMode, editor, isSharedMode, t, trash]);
+  }, [currentMode, editor, isSharedMode, trash]);
 
   const onModeChange = useCallback(
     (mode: DocMode) => {
@@ -68,7 +73,8 @@ export const EditorModeSwitch = () => {
   );
 
   useEffect(() => {
-    if (trash || isSharedMode || currentMode === undefined) return;
+    if (trash || isSharedMode || currentMode === undefined || !isActiveView)
+      return;
     return registerAffineCommand({
       id: 'affine:doc-mode-switch',
       category: 'editor:page',
@@ -83,24 +89,15 @@ export const EditorModeSwitch = () => {
       },
       run: () => onModeChange(currentMode === 'edgeless' ? 'page' : 'edgeless'),
     });
-  }, [currentMode, isSharedMode, onModeChange, t, trash]);
+  }, [currentMode, isActiveView, isSharedMode, onModeChange, t, trash]);
 
   return (
-    <Tooltip
-      content={t['Switch']()}
-      shortcut={['$alt', 'S']}
-      side="bottom"
-      options={{ hidden: trash || isSharedMode }}
-    >
-      <div>
-        <PureEditorModeSwitch
-          mode={currentMode}
-          setMode={onModeChange}
-          hidePage={shouldHide('page')}
-          hideEdgeless={shouldHide('edgeless')}
-        />
-      </div>
-    </Tooltip>
+    <PureEditorModeSwitch
+      mode={currentMode}
+      setMode={onModeChange}
+      hidePage={shouldHide('page')}
+      hideEdgeless={shouldHide('edgeless')}
+    />
   );
 };
 

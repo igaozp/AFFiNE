@@ -30,11 +30,11 @@ export const HighlightText = ({ text = '', end, start }: HighlightProps) => {
 
   return (
     <span className={styles.highlightText}>
-      {parts.map((part, i) =>
+      {parts.map((part, index) =>
         typeof part === 'string' ? (
-          <Fragment key={i}>{part}</Fragment>
+          <Fragment key={part}>{part}</Fragment>
         ) : (
-          <span key={i} className={styles.highlightKeyword}>
+          <span key={part.h + '.' + index} className={styles.highlightKeyword}>
             {part.h}
           </span>
         )
